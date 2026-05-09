@@ -2,6 +2,8 @@
 
 require "lifeplan/commands/helpers"
 require "lifeplan/validation/validator"
+require "lifeplan/forecast/engine"
+require "lifeplan/forecast/year_builder"
 
 module Lifeplan
   module Commands
@@ -36,19 +38,67 @@ module Lifeplan
         result
       end
 
-      def check_payload(_opts)
-        load_project
-        data = {
-          "risks" => [],
-          "note" => "Heuristic checks require forecast (Phase 4); no risks reported.",
-        }
-        payload(
-          data: data,
-          text: "No risks detected (forecast-based checks not yet available).",
-        )
+      def check_payload(opts)
+        project = load_project
+        result = Lifeplan::Forecast::Engine.new(
+          project, scenario_id: opts[:scenario] || "base"
+        ).call
+
+        risks = []
+        risks.concat(check_negative_assets(result))
+        risks.concat(check_retirement_income(project, result))
+        risks.concat(check_loan_beyond_period(project))
+
+        data = { "risks" => risks }
+        text = if risks.empty?
+          "No risks detected."
+        else
+          "Detected #{risks.size} risk(s):\n" + risks.map { |r| "  - #{r["code"]}: #{r["message"]}" }.join("\n")
+        end
+        payload(data: data, text: text)
       end
 
       private
+
+      def check_negative_assets(result)
+        year = result.summary.first_negative_asset_year
+        return [] unless year
+
+        [{
+          "code" => "ASSETS_NEGATIVE",
+          "message" => "Asset balance becomes negative in #{year}.",
+          "year" => year,
+        }]
+      end
+
+      def check_retirement_income(project, result)
+        ry = result.summary.retirement_year
+        return [] unless ry
+
+        post = result.years.select { |r| r.year > ry }
+        return [] if post.empty? || post.any? { |r| r.income.positive? }
+
+        [{
+          "code" => "MISSING_RETIREMENT_INCOME",
+          "message" => "No income recorded after retirement year #{ry}.",
+          "year" => ry,
+        }]
+      end
+
+      def check_loan_beyond_period(project)
+        end_year = project.end_year
+        return [] unless end_year
+
+        project.liabilities.filter_map do |l|
+          next unless l.to && l.to > end_year
+
+          {
+            "code" => "LIABILITY_BEYOND_PROJECT",
+            "message" => "liability '#{l.id}' repayment ends at #{l.to}, after project end #{end_year}.",
+            "record_id" => l.id,
+          }
+        end
+      end
 
       def validation_text(valid, errors, warnings)
         lines = []

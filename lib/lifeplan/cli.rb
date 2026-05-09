@@ -9,6 +9,7 @@ require "lifeplan/commands/project_commands"
 require "lifeplan/commands/record_commands"
 require "lifeplan/commands/mutation_commands"
 require "lifeplan/commands/validation_commands"
+require "lifeplan/commands/forecast_commands"
 
 module Lifeplan
   class CLI < Thor
@@ -17,6 +18,7 @@ module Lifeplan
     include Commands::RecordCommands
     include Commands::MutationCommands
     include Commands::ValidationCommands
+    include Commands::ForecastCommands
 
     class << self
       def exit_on_failure?
@@ -108,8 +110,26 @@ module Lifeplan
     end
 
     desc "check", "Run heuristic checks against the project"
+    method_option :scenario, type: :string
     def check
       render(check_payload(options))
+    end
+
+    desc "forecast", "Generate an annual life planning projection"
+    method_option :scenario, type: :string
+    method_option :from, type: :numeric
+    method_option :to, type: :numeric
+    method_option :"include-details", type: :boolean, default: false
+    def forecast
+      render(forecast_payload(options))
+    end
+
+    desc "explain TARGET [ARGS...]", "Explain a forecast result (year|metric|scenario-diff)"
+    method_option :scenario, type: :string
+    method_option :year, type: :numeric
+    method_option :metric, type: :string
+    def explain(target, *args)
+      render(explain_payload(target, args, options))
     end
 
     desc "remove TYPE ID", "Remove a record"

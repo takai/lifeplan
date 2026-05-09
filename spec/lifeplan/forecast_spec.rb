@@ -1,0 +1,140 @@
+# frozen_string_literal: true
+
+require "lifeplan/project"
+require "lifeplan/records"
+require "lifeplan/forecast/engine"
+
+RSpec.describe(Lifeplan::Forecast::Engine) do
+  def project_with(start: 2026, last: 2030, &block)
+    project = Lifeplan::Project.new(
+      path: "/tmp/x",
+      id: "p",
+      name: "Plan",
+      currency: "JPY",
+      start_year: start,
+      end_year: last,
+    )
+    block&.call(project)
+    project
+  end
+
+  def income(**attrs)
+    Lifeplan::Records::Income.from_hash({
+      "id" => "i", "name" => "I", "frequency" => "yearly",
+    }.merge(attrs.transform_keys(&:to_s)))
+  end
+
+  def expense(**attrs)
+    Lifeplan::Records::Expense.from_hash({
+      "id" => "e", "name" => "E", "frequency" => "yearly",
+    }.merge(attrs.transform_keys(&:to_s)))
+  end
+
+  def asset(**attrs)
+    Lifeplan::Records::Asset.from_hash({
+      "id" => "a", "name" => "A", "as_of" => "2026-01-01",
+    }.merge(attrs.transform_keys(&:to_s)))
+  end
+
+  it "produces one row per year between start and end" do
+    project = project_with
+    result = described_class.new(project).call
+    expect(result.years.map(&:year)).to(eq([2026, 2027, 2028, 2029, 2030]))
+  end
+
+  it "applies yearly income and expense to net cashflow and asset balance" do
+    project = project_with do |p|
+      p.incomes << income(amount: 1_000_000, from: 2026, to: 2030)
+      p.expenses << expense(amount: 400_000, from: 2026, to: 2030)
+      p.assets << asset(amount: 0)
+    end
+
+    result = described_class.new(project).call
+    first = result.years.first
+    expect(first.income).to(eq(1_000_000))
+    expect(first.expense).to(eq(400_000))
+    expect(first.net_cashflow).to(eq(600_000))
+    expect(first.asset_balance).to(eq(600_000))
+
+    expect(result.years.last.asset_balance).to(eq(3_000_000))
+  end
+
+  it "applies growth using assumption references" do
+    project = project_with(start: 2026, last: 2027) do |p|
+      p.assumptions << Lifeplan::Records::Assumption.from_hash({
+        "id" => "inflation", "name" => "Inflation", "value" => 0.1,
+      })
+      p.expenses << expense(amount: 1_000_000, growth: "inflation", from: 2026, to: 2027)
+    end
+
+    result = described_class.new(project).call
+    expect(result.years[0].expense).to(eq(1_000_000))
+    expect(result.years[1].expense).to(eq(1_100_000))
+  end
+
+  it "compounds asset returns and includes net cashflow in cash pool" do
+    project = project_with(start: 2026, last: 2027) do |p|
+      p.assets << asset(amount: 1_000_000, return: 0.05)
+    end
+
+    result = described_class.new(project).call
+    expect(result.years[0].asset_balance).to(eq(1_000_000))
+    expect(result.years[1].asset_balance).to(eq(1_050_000))
+  end
+
+  it "amortizes a liability with explicit yearly payment" do
+    project = project_with(start: 2026, last: 2030) do |p|
+      p.liabilities << Lifeplan::Records::Liability.from_hash({
+        "id" => "loan",
+        "name" => "Loan",
+        "principal" => 1_000_000,
+        "rate" => 0,
+        "from" => 2026,
+        "to" => 2030,
+        "payment" => 200_000,
+        "frequency" => "yearly",
+      })
+    end
+
+    result = described_class.new(project).call
+    expect(result.years.last.liability_balance).to(eq(0))
+  end
+
+  it "captures one-time event expenses" do
+    project = project_with(start: 2026, last: 2030) do |p|
+      p.events << Lifeplan::Records::Event.from_hash({
+        "id" => "uni",
+        "name" => "Univ",
+        "year" => 2028,
+        "amount" => 1_000_000,
+        "impact_type" => "expense",
+      })
+    end
+
+    result = described_class.new(project).call
+    expect(result.years[2].event_expense).to(eq(1_000_000))
+    expect(result.years[2].net_cashflow).to(eq(-1_000_000))
+  end
+
+  it "summary tracks min, retirement, and totals" do
+    project = project_with(start: 2026, last: 2030) do |p|
+      person = Lifeplan::Records::Person.from_hash({
+        "id" => "self",
+        "name" => "Self",
+        "relationship" => "self",
+        "birth_year" => 1980,
+        "retirement_age" => 50,
+      })
+      p.profile = Lifeplan::Records::Profile.from_hash({
+        "id" => "h", "name" => "H", "people" => [person],
+      })
+      p.expenses << expense(amount: 100_000, from: 2026, to: 2030)
+      p.assets << asset(amount: 1_000_000)
+    end
+
+    result = described_class.new(project).call
+    expect(result.summary.retirement_year).to(eq(2030))
+    expect(result.summary.total_expense).to(eq(500_000))
+    expect(result.summary.minimum_asset_balance).to(eq(result.years.last.asset_balance))
+  end
+end

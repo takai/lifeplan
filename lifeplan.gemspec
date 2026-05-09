@@ -20,5 +20,6 @@ Gem::Specification.new do |spec|
   spec.executables = ["lifeplan"]
   spec.require_paths = ["lib"]
 
+  spec.add_dependency("csv", "~> 3.3")
   spec.add_dependency("thor", "~> 1.3")
 end
