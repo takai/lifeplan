@@ -11,6 +11,7 @@ Ruby 4.0, conventional gem-style layout.
 - `lib/lifeplan.rb` - `require "lifeplan"` entrypoint.
 - `lib/lifeplan/` - Modules, commands, and domain logic.
 - `spec/` - RSpec tests.
+- `templates/` - Template files used to generate life planning workspaces.
 
 ## Documentation
 

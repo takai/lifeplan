@@ -118,6 +118,20 @@ lifeplan init [path]
 
 Creates an empty project structure with required initial data.
 
+In addition to `project.json`, `init` scaffolds documents and skills used by
+LLM agents working in the project:
+
+- `CLAUDE.md` — short navigation file pointing at the documents and skills.
+- `docs/prd.md`, `docs/cli.md`, `docs/datamodel.md` — copied from the
+  installed Lifeplan CLI as the source of truth for product scope, command
+  interface, and data model.
+- `.claude/skills/lifeplan-product/SKILL.md`,
+  `.claude/skills/lifeplan-cli/SKILL.md`,
+  `.claude/skills/lifeplan-data/SKILL.md` — task-scoped guidance for Claude
+  Code.
+
+Existing files at the destination are not overwritten.
+
 ### Example
 
 ```bash

@@ -35,6 +35,30 @@ RSpec.describe(Lifeplan::CLI) do
       end
     end
 
+    it "scaffolds agent-facing docs and skills" do
+      with_tmp_project do |dir|
+        described_class.start(["init", dir, "--name", "Scaffold Plan"])
+
+        expect(File.exist?(File.join(dir, "CLAUDE.md"))).to(be(true))
+        expect(File.exist?(File.join(dir, "docs/prd.md"))).to(be(true))
+        expect(File.exist?(File.join(dir, "docs/cli.md"))).to(be(true))
+        expect(File.exist?(File.join(dir, "docs/datamodel.md"))).to(be(true))
+        expect(File.exist?(File.join(dir, ".claude/skills/lifeplan-product/SKILL.md"))).to(be(true))
+        expect(File.exist?(File.join(dir, ".claude/skills/lifeplan-cli/SKILL.md"))).to(be(true))
+        expect(File.exist?(File.join(dir, ".claude/skills/lifeplan-data/SKILL.md"))).to(be(true))
+      end
+    end
+
+    it "copies docs verbatim from the gem" do
+      with_tmp_project do |dir|
+        described_class.start(["init", dir, "--name", "Verbatim Plan"])
+
+        gem_cli_md = File.read(File.join(Lifeplan::ROOT, "docs/cli.md"))
+        copied_cli_md = File.read(File.join(dir, "docs/cli.md"))
+        expect(copied_cli_md).to(eq(gem_cli_md))
+      end
+    end
+
     it "rejects re-initialization" do
       with_tmp_project do |dir|
         described_class.start(["init", dir, "--name", "First"])

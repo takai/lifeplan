@@ -15,7 +15,15 @@ Gem::Specification.new do |spec|
   spec.license = "MIT"
   spec.required_ruby_version = ">= 4.0.0"
 
-  spec.files = Dir["lib/**/*.rb", "bin/*", "README.md", "LICENSE", "docs/**/*.md"]
+  spec.files = Dir[
+    "lib/**/*.rb",
+    "bin/*",
+    "README.md",
+    "LICENSE",
+    "docs/**/*.md",
+    "templates/**/*",
+    "templates/.claude/**/*",
+  ]
   spec.bindir = "bin"
   spec.executables = ["lifeplan"]
   spec.require_paths = ["lib"]

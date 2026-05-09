@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "fileutils"
 require "lifeplan/commands/helpers"
 require "lifeplan/storage"
 require "lifeplan/records"
@@ -29,6 +30,7 @@ module Lifeplan
           "people" => [],
         )
         project.save
+        write_init_scaffold(path)
         project
       end
 
@@ -69,6 +71,45 @@ module Lifeplan
       def derive_project_id(path, name)
         base = name || File.basename(File.expand_path(path))
         base.to_s.downcase.strip.gsub(/[^a-z0-9]+/, "-").gsub(/(^-|-$)/, "")
+      end
+
+      SCAFFOLD_DOCS = ["prd.md", "cli.md", "datamodel.md"].freeze
+
+      def write_init_scaffold(path)
+        copy_scaffold_docs(path)
+        copy_scaffold_templates(path)
+      end
+
+      def copy_scaffold_docs(path)
+        src_dir = File.join(Lifeplan::ROOT, "docs")
+        dest_dir = File.join(path, "docs")
+        FileUtils.mkdir_p(dest_dir)
+        SCAFFOLD_DOCS.each do |name|
+          src = File.join(src_dir, name)
+          dest = File.join(dest_dir, name)
+          next unless File.file?(src)
+          next if File.exist?(dest)
+
+          FileUtils.cp(src, dest)
+        end
+      end
+
+      def copy_scaffold_templates(path)
+        src_root = File.join(Lifeplan::ROOT, "templates")
+        return unless File.directory?(src_root)
+
+        Dir.glob("**/*", File::FNM_DOTMATCH, base: src_root).each do |entry|
+          next if entry.end_with?("/.", "/..")
+
+          src = File.join(src_root, entry)
+          dest = File.join(path, entry)
+          if File.directory?(src)
+            FileUtils.mkdir_p(dest)
+          elsif File.file?(src) && !File.exist?(dest)
+            FileUtils.mkdir_p(File.dirname(dest))
+            FileUtils.cp(src, dest)
+          end
+        end
       end
     end
   end
