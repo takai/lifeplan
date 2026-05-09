@@ -2,3 +2,7 @@
 ruby = "4.0.2"
 hk = "1.45.0"
 pkl = "0.31.1"
+
+[tasks.test]
+description = "Run all tests"
+run = "bundle exec rspec"
