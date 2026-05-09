@@ -12,6 +12,7 @@ require "lifeplan/commands/validation_commands"
 require "lifeplan/commands/forecast_commands"
 require "lifeplan/commands/scenario_commands"
 require "lifeplan/commands/compare_commands"
+require "lifeplan/commands/proposal_commands"
 
 module Lifeplan
   class CLI < Thor
@@ -22,6 +23,7 @@ module Lifeplan
     include Commands::ValidationCommands
     include Commands::ForecastCommands
     include Commands::CompareCommands
+    include Commands::ProposalCommands
 
     class << self
       def exit_on_failure?
@@ -137,6 +139,39 @@ module Lifeplan
 
     desc "scenario SUBCOMMAND ...ARGS", "Manage scenarios"
     subcommand "scenario", Commands::ScenarioCLI
+
+    desc "propose ACTION TYPE [ARGS...]", "Create a change proposal without applying"
+    Lifeplan::Commands::MutationCommands::ADD_OPTIONS.each do |opt|
+      method_option opt.to_sym, type: :string
+    end
+    method_option :summary, type: :string
+    def propose(action, type, *args)
+      render(propose_payload(action, type, args, options))
+    end
+
+    desc "proposals", "List pending proposals"
+    def proposals
+      render(proposals_payload(options))
+    end
+
+    desc "apply PROPOSAL_ID", "Apply a proposal"
+    method_option :"dry-run", type: :boolean, default: false
+    method_option :force, type: :boolean, default: false
+    def apply(id)
+      render(apply_payload(id, options))
+    end
+
+    desc "discard PROPOSAL_ID", "Discard a proposal"
+    def discard(id)
+      render(discard_payload(id, options))
+    end
+
+    desc "diff", "Show differences (--proposal <id> | --scenario <id>)"
+    method_option :proposal, type: :string
+    method_option :scenario, type: :string
+    def diff
+      render(diff_payload(options))
+    end
 
     desc "compare BASE TARGET", "Compare two scenarios"
     method_option :scenario, type: :string

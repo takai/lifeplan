@@ -44,4 +44,10 @@ module Lifeplan
       ExitCodes::INVALID_ARGUMENTS
     end
   end
+
+  class ChangeNotApplied < Error
+    def exit_code
+      ExitCodes::CHANGE_NOT_APPLIED
+    end
+  end
 end
