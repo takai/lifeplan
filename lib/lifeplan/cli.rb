@@ -13,6 +13,7 @@ require "lifeplan/commands/forecast_commands"
 require "lifeplan/commands/scenario_commands"
 require "lifeplan/commands/compare_commands"
 require "lifeplan/commands/proposal_commands"
+require "lifeplan/commands/calc_commands"
 
 module Lifeplan
   class CLI < Thor
@@ -139,6 +140,9 @@ module Lifeplan
 
     desc "scenario SUBCOMMAND ...ARGS", "Manage scenarios"
     subcommand "scenario", Commands::ScenarioCLI
+
+    desc "calc SUBCOMMAND ...ARGS", "Financial calculators"
+    subcommand "calc", Commands::CalcCLI
 
     desc "propose ACTION TYPE [ARGS...]", "Create a change proposal without applying"
     Lifeplan::Commands::MutationCommands::ADD_OPTIONS.each do |opt|
