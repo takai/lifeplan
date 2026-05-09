@@ -8,6 +8,7 @@ require "lifeplan/commands/helpers"
 require "lifeplan/commands/project_commands"
 require "lifeplan/commands/record_commands"
 require "lifeplan/commands/mutation_commands"
+require "lifeplan/commands/validation_commands"
 
 module Lifeplan
   class CLI < Thor
@@ -15,6 +16,7 @@ module Lifeplan
     include Commands::ProjectCommands
     include Commands::RecordCommands
     include Commands::MutationCommands
+    include Commands::ValidationCommands
 
     class << self
       def exit_on_failure?
@@ -97,6 +99,17 @@ module Lifeplan
     method_option :"dry-run", type: :boolean, default: false
     def set(type, id, field, value)
       render(set_payload(type, id, field, value, options))
+    end
+
+    desc "validate", "Validate the project against rules"
+    method_option :strict, type: :boolean, default: false
+    def validate
+      render(validate_payload(options))
+    end
+
+    desc "check", "Run heuristic checks against the project"
+    def check
+      render(check_payload(options))
     end
 
     desc "remove TYPE ID", "Remove a record"
