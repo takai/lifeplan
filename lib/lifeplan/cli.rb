@@ -14,6 +14,8 @@ require "lifeplan/commands/scenario_commands"
 require "lifeplan/commands/compare_commands"
 require "lifeplan/commands/proposal_commands"
 require "lifeplan/commands/calc_commands"
+require "lifeplan/commands/export_commands"
+require "lifeplan/commands/report_commands"
 
 module Lifeplan
   class CLI < Thor
@@ -25,6 +27,8 @@ module Lifeplan
     include Commands::ForecastCommands
     include Commands::CompareCommands
     include Commands::ProposalCommands
+    include Commands::ExportCommands
+    include Commands::ReportCommands
 
     class << self
       def exit_on_failure?
@@ -183,6 +187,25 @@ module Lifeplan
     method_option :to, type: :numeric
     def compare(base, target)
       render(compare_payload(base, target, options))
+    end
+
+    desc "export TARGET [ARGS...]", "Export project data, forecasts, scenarios, comparisons, or validation"
+    method_option :scenario, type: :string
+    method_option :from, type: :numeric
+    method_option :to, type: :numeric
+    def export(target, *args)
+      render(export_payload(target, args, options))
+    end
+
+    desc "report", "Generate a human-readable report"
+    method_option :scenario, type: :string
+    method_option :from, type: :numeric
+    method_option :to, type: :numeric
+    method_option :"include-validation", type: :boolean, default: false
+    method_option :"include-assumptions", type: :boolean, default: true
+    method_option :"include-scenarios", type: :boolean, default: false
+    def report
+      render(report_payload(options))
     end
 
     desc "remove TYPE ID", "Remove a record"
