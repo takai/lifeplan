@@ -4,5 +4,9 @@ hk = "1.45.0"
 pkl = "0.31.1"
 
 [tasks.test]
-description = "Run all tests"
+description = "Runs the full test suite."
 run = "bundle exec rspec"
+
+[tasks.fix]
+description = "Runs lint checks and applies automatic fixes."
+run = "hk fix"
