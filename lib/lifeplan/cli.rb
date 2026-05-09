@@ -7,12 +7,14 @@ require "lifeplan/exit_codes"
 require "lifeplan/commands/helpers"
 require "lifeplan/commands/project_commands"
 require "lifeplan/commands/record_commands"
+require "lifeplan/commands/mutation_commands"
 
 module Lifeplan
   class CLI < Thor
     include Commands::Helpers
     include Commands::ProjectCommands
     include Commands::RecordCommands
+    include Commands::MutationCommands
 
     class << self
       def exit_on_failure?
@@ -80,6 +82,28 @@ module Lifeplan
     desc "get TYPE ID", "Show a specific record"
     def get(type, id)
       render(get_payload(type, id))
+    end
+
+    desc "add TYPE", "Add a new record"
+    Lifeplan::Commands::MutationCommands::ADD_OPTIONS.each do |opt|
+      method_option opt.to_sym, type: :string
+    end
+    method_option :"dry-run", type: :boolean, default: false
+    def add(type)
+      render(add_payload(type, options))
+    end
+
+    desc "set TYPE ID FIELD VALUE", "Update a field on an existing record"
+    method_option :"dry-run", type: :boolean, default: false
+    def set(type, id, field, value)
+      render(set_payload(type, id, field, value, options))
+    end
+
+    desc "remove TYPE ID", "Remove a record"
+    method_option :"dry-run", type: :boolean, default: false
+    method_option :force, type: :boolean, default: false
+    def remove(type, id)
+      render(remove_payload(type, id, options))
     end
   end
 end
