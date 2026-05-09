@@ -10,6 +10,8 @@ require "lifeplan/commands/record_commands"
 require "lifeplan/commands/mutation_commands"
 require "lifeplan/commands/validation_commands"
 require "lifeplan/commands/forecast_commands"
+require "lifeplan/commands/scenario_commands"
+require "lifeplan/commands/compare_commands"
 
 module Lifeplan
   class CLI < Thor
@@ -19,6 +21,7 @@ module Lifeplan
     include Commands::MutationCommands
     include Commands::ValidationCommands
     include Commands::ForecastCommands
+    include Commands::CompareCommands
 
     class << self
       def exit_on_failure?
@@ -130,6 +133,17 @@ module Lifeplan
     method_option :metric, type: :string
     def explain(target, *args)
       render(explain_payload(target, args, options))
+    end
+
+    desc "scenario SUBCOMMAND ...ARGS", "Manage scenarios"
+    subcommand "scenario", Commands::ScenarioCLI
+
+    desc "compare BASE TARGET", "Compare two scenarios"
+    method_option :scenario, type: :string
+    method_option :from, type: :numeric
+    method_option :to, type: :numeric
+    def compare(base, target)
+      render(compare_payload(base, target, options))
     end
 
     desc "remove TYPE ID", "Remove a record"

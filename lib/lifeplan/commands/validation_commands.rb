@@ -4,6 +4,7 @@ require "lifeplan/commands/helpers"
 require "lifeplan/validation/validator"
 require "lifeplan/forecast/engine"
 require "lifeplan/forecast/year_builder"
+require "lifeplan/scenarios/resolver"
 
 module Lifeplan
   module Commands
@@ -39,10 +40,14 @@ module Lifeplan
       end
 
       def check_payload(opts)
-        project = load_project
-        result = Lifeplan::Forecast::Engine.new(
-          project, scenario_id: opts[:scenario] || "base"
-        ).call
+        base = load_project
+        scenario_id = opts[:scenario] || "base"
+        project = if scenario_id == "base"
+          base
+        else
+          Lifeplan::Scenarios::Resolver.new(base).call(scenario_id)
+        end
+        result = Lifeplan::Forecast::Engine.new(project, scenario_id: scenario_id).call
 
         risks = []
         risks.concat(check_negative_assets(result))

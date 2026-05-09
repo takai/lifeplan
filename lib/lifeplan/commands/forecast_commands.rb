@@ -3,6 +3,7 @@
 require "csv"
 require "lifeplan/commands/helpers"
 require "lifeplan/forecast/engine"
+require "lifeplan/scenarios/resolver"
 
 module Lifeplan
   module Commands
@@ -22,7 +23,7 @@ module Lifeplan
       ].freeze
 
       def forecast_payload(opts)
-        project = load_project
+        project = resolved_project(opts)
         result = build_forecast(project, opts)
 
         rows = result.years.map(&:to_h)
@@ -42,7 +43,7 @@ module Lifeplan
       end
 
       def explain_payload(target, args, opts)
-        project = load_project
+        project = resolved_project(opts)
         result = build_forecast(project, opts)
 
         case target.to_s
@@ -56,6 +57,14 @@ module Lifeplan
       end
 
       private
+
+      def resolved_project(opts)
+        base = load_project
+        scenario_id = opts[:scenario]
+        return base if scenario_id.nil? || scenario_id == "base"
+
+        Lifeplan::Scenarios::Resolver.new(base).call(scenario_id)
+      end
 
       def build_forecast(project, opts)
         Lifeplan::Forecast::Engine.new(
