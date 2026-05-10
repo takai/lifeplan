@@ -182,6 +182,31 @@ module Lifeplan
       field(:notes, :string, description: "Notes"),
     ].freeze
 
+    CONTRIBUTION = [
+      field(:id, :string, required: true, description: "Contribution ID"),
+      field(:name, :string, required: true, description: "Contribution name"),
+      field(:amount, :any, required: true, description: "Amount per frequency, or 'all' for full from_asset balance"),
+      field(:currency, :currency_code, description: "Currency"),
+      field(
+        :frequency,
+        :string,
+        description: "Frequency",
+        allowed: ["once", "monthly", "yearly"],
+      ),
+      field(:from, :year, description: "Start year"),
+      field(:to, :year, description: "End year"),
+      field(:year, :year, description: "One-time transfer year"),
+      field(:from_asset, :string, required: true, description: "Source asset id"),
+      field(:to_asset, :string, required: true, description: "Destination asset id"),
+      field(
+        :tax_treatment,
+        :string,
+        description: "Tax handling label (nisa, ideco_deduction, retirement_income, etc.)",
+      ),
+      field(:person_id, :string, description: "Related person"),
+      field(:notes, :string, description: "Notes"),
+    ].freeze
+
     SCENARIO = [
       field(:id, :string, required: true, description: "Scenario ID"),
       field(:name, :string, required: true, description: "Human-readable name"),
@@ -199,6 +224,7 @@ module Lifeplan
       "asset" => ASSET,
       "liability" => LIABILITY,
       "event" => EVENT,
+      "contribution" => CONTRIBUTION,
       "assumption" => ASSUMPTION,
       "scenario" => SCENARIO,
     }.freeze
@@ -211,6 +237,7 @@ module Lifeplan
       "assets" => "asset",
       "liabilities" => "liability",
       "events" => "event",
+      "contributions" => "contribution",
       "assumptions" => "assumption",
       "scenarios" => "scenario",
     }.freeze

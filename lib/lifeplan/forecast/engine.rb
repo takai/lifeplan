@@ -37,6 +37,7 @@ module Lifeplan
           net_cashflow = income + event_income - expense - event_expense - liability_outflow
 
           contributions = apply_contributions(asset_balances, year)
+          contributions.concat(apply_contribution_records(asset_balances, year))
           apply_asset_changes(asset_balances, asset_changes)
 
           if cash_id
@@ -139,6 +140,53 @@ module Lifeplan
           contributions << { "record_id" => r.id, "asset_id" => r.contribute_to, "amount" => amount }
         end
         contributions
+      end
+
+      def apply_contribution_records(asset_balances, year)
+        records = []
+        @project.contributions.each do |c|
+          amount = contribution_amount(c, year, asset_balances)
+          next if amount.zero?
+
+          asset_balances[c.from_asset] = (asset_balances[c.from_asset] || 0.0) - amount
+          asset_balances[c.to_asset] = (asset_balances[c.to_asset] || 0.0) + amount
+          records << {
+            "record_id" => c.id,
+            "from_asset" => c.from_asset,
+            "to_asset" => c.to_asset,
+            "amount" => amount,
+            "tax_treatment" => c.tax_treatment,
+          }
+        end
+        records
+      end
+
+      def contribution_amount(contribution, year, asset_balances)
+        return 0 unless contribution_active?(contribution, year)
+
+        raw = contribution.amount
+        if raw == "all"
+          balance = asset_balances[contribution.from_asset].to_f
+          return balance.positive? ? balance : 0
+        end
+
+        amount = raw.to_i
+        return 0 if amount.zero?
+
+        case contribution.frequency
+        when "monthly" then amount * 12
+        else amount
+        end
+      end
+
+      def contribution_active?(contribution, year)
+        if contribution.year
+          contribution.year == year
+        else
+          from = contribution.from || year
+          to = contribution.to || year
+          year.between?(from, to)
+        end
       end
 
       def apply_asset_changes(asset_balances, asset_changes)

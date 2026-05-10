@@ -112,7 +112,36 @@ module Lifeplan
             )
           end
 
+          issues.concat(check_contribution_refs(project, asset_ids))
           issues.concat(check_assumption_refs(project, assumption_ids))
+          issues
+        end
+
+        def check_contribution_refs(project, asset_ids)
+          issues = []
+          project.contributions.each do |c|
+            [[:from_asset, c.from_asset], [:to_asset, c.to_asset]].each do |field, value|
+              next if value.nil? || asset_ids.include?(value)
+
+              issues << Issue.error(
+                "MISSING_REFERENCE",
+                "contribution '#{c.id}' references unknown asset '#{value}'.",
+                record_type: "contribution",
+                record_id: c.id,
+                path: field.to_s,
+              )
+            end
+
+            if c.from_asset && c.to_asset && c.from_asset == c.to_asset
+              issues << Issue.error(
+                "INVALID_REFERENCE",
+                "contribution '#{c.id}' has identical from_asset and to_asset.",
+                record_type: "contribution",
+                record_id: c.id,
+                path: "to_asset",
+              )
+            end
+          end
           issues
         end
 
@@ -146,7 +175,7 @@ module Lifeplan
         end
 
         def each_record_with_person(project)
-          [:incomes, :expenses, :assets, :events].each do |coll|
+          [:incomes, :expenses, :assets, :events, :contributions].each do |coll|
             project.public_send(coll).each do |record|
               type = Lifeplan::Project::COLLECTIONS[coll.to_s]
               yield(type, record)

@@ -12,6 +12,7 @@ module Lifeplan
       "assets" => "asset",
       "liabilities" => "liability",
       "events" => "event",
+      "contributions" => "contribution",
       "assumptions" => "assumption",
       "scenarios" => "scenario",
     }.freeze
@@ -27,6 +28,7 @@ module Lifeplan
       :assets,
       :liabilities,
       :events,
+      :contributions,
       :assumptions,
       :scenarios,
       :proposals
@@ -45,6 +47,7 @@ module Lifeplan
       @assets = []
       @liabilities = []
       @events = []
+      @contributions = []
       @assumptions = []
       @scenarios = []
       @proposals = []

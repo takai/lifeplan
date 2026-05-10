@@ -69,6 +69,42 @@ RSpec.describe(Lifeplan::Validation::Validator) do
     expect(codes).to(include("INVALID_PERIOD"))
   end
 
+  it "flags contributions referencing unknown assets" do
+    project = make_project
+    project.assets << Lifeplan::Records::Asset.from_hash({
+      "id" => "cash", "name" => "Cash", "amount" => 0, "as_of" => "2026-01-01",
+    })
+    project.contributions << Lifeplan::Records::Contribution.from_hash({
+      "id" => "c",
+      "name" => "C",
+      "amount" => 100,
+      "from_asset" => "cash",
+      "to_asset" => "ghost",
+      "year" => 2026,
+    })
+
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("MISSING_REFERENCE"))
+  end
+
+  it "flags contributions whose from_asset and to_asset are identical" do
+    project = make_project
+    project.assets << Lifeplan::Records::Asset.from_hash({
+      "id" => "cash", "name" => "Cash", "amount" => 0, "as_of" => "2026-01-01",
+    })
+    project.contributions << Lifeplan::Records::Contribution.from_hash({
+      "id" => "c",
+      "name" => "C",
+      "amount" => 100,
+      "from_asset" => "cash",
+      "to_asset" => "cash",
+      "year" => 2026,
+    })
+
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("INVALID_REFERENCE"))
+  end
+
   it "flags missing scenario base" do
     project = make_project
     project.scenarios << Lifeplan::Records::Scenario.from_hash({

@@ -34,6 +34,8 @@ module Lifeplan
         "year",
         "as-of",
         "person-id",
+        "from-asset",
+        "to-asset",
         "secured-by-asset-id",
         "primary-person-id",
         "impact-type",
