@@ -380,7 +380,27 @@ Represents money spent.
 | `category`  | string            |       No | Expense category               |
 | `person_id` | string            |       No | Related person                 |
 | `essential` | boolean           |       No | Whether expense is essential   |
+| `transitions` | array of Transition |   No | Lifestage transitions for amount/growth |
 | `notes`     | string            |       No | Notes                          |
+
+### Transition
+
+A transition replaces the expense's effective `amount` (and optionally `growth`) starting from a given `year`. Use transitions to model the same expense changing across life stages (e.g. child independence, retirement, late elderly) without duplicating records.
+
+| Field    | Type              | Required | Description                                                |
+| -------- | ----------------- | -------: | ---------------------------------------------------------- |
+| `year`   | year              |      Yes | First year the transition applies                          |
+| `amount` | integer           |      Yes | Amount per frequency from this year                        |
+| `growth` | decimal or string |       No | Growth rule from this year (defaults to expense `growth`)  |
+| `label`  | string            |       No | Human-readable label (e.g. `child independence`)           |
+
+Rules:
+
+Transitions must be sorted by `year` in strictly ascending order.
+
+Each transition `year` should lie within the expense's `from`/`to` range.
+
+Growth compounds from the transition's `year` (not from the expense's `from`).
 
 ### Category Examples
 
@@ -408,6 +428,26 @@ other
   "to": 2065,
   "growth": "inflation",
   "category": "living"
+}
+```
+
+### Example with lifestage transitions
+
+```json
+{
+  "id": "living",
+  "name": "Living Expenses",
+  "amount": 6400000,
+  "frequency": "yearly",
+  "from": 2026,
+  "to": 2089,
+  "growth": "inflation",
+  "category": "living",
+  "transitions": [
+    {"year": 2033, "amount": 5400000, "label": "child independence"},
+    {"year": 2037, "amount": 4900000, "label": "retirement"},
+    {"year": 2052, "amount": 2560000, "label": "late elderly"}
+  ]
 }
 ```
 

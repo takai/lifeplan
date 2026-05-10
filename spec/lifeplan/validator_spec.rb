@@ -92,6 +92,77 @@ RSpec.describe(Lifeplan::Validation::Validator) do
     expect(codes).to(include("SCENARIO_CYCLE"))
   end
 
+  it "flags expense transitions that are not strictly ascending" do
+    project = make_project
+    project.expenses << Lifeplan::Records::Expense.from_hash({
+      "id" => "living",
+      "name" => "Living",
+      "amount" => 6_400_000,
+      "frequency" => "yearly",
+      "from" => 2026,
+      "to" => 2030,
+      "transitions" => [
+        { "year" => 2028, "amount" => 5_400_000 },
+        { "year" => 2027, "amount" => 4_900_000 },
+      ],
+    })
+
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("TRANSITIONS_NOT_SORTED"))
+  end
+
+  it "flags negative transition amount" do
+    project = make_project
+    project.expenses << Lifeplan::Records::Expense.from_hash({
+      "id" => "living",
+      "name" => "Living",
+      "amount" => 6_400_000,
+      "frequency" => "yearly",
+      "from" => 2026,
+      "to" => 2030,
+      "transitions" => [{ "year" => 2028, "amount" => -1 }],
+    })
+
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("NEGATIVE_AMOUNT"))
+  end
+
+  it "flags transition year outside expense period" do
+    project = make_project
+    project.expenses << Lifeplan::Records::Expense.from_hash({
+      "id" => "living",
+      "name" => "Living",
+      "amount" => 6_400_000,
+      "frequency" => "yearly",
+      "from" => 2026,
+      "to" => 2030,
+      "transitions" => [{ "year" => 2040, "amount" => 1_000_000 }],
+    })
+
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("TRANSITION_OUT_OF_RANGE"))
+  end
+
+  it "accepts a well-formed transitions array" do
+    project = make_project
+    project.expenses << Lifeplan::Records::Expense.from_hash({
+      "id" => "living",
+      "name" => "Living",
+      "amount" => 6_400_000,
+      "frequency" => "yearly",
+      "from" => 2026,
+      "to" => 2030,
+      "transitions" => [
+        { "year" => 2028, "amount" => 5_400_000, "label" => "stage" },
+      ],
+    })
+
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).not_to(include("TRANSITIONS_NOT_SORTED"))
+    expect(codes).not_to(include("TRANSITION_OUT_OF_RANGE"))
+    expect(codes).not_to(include("INVALID_TRANSITIONS"))
+  end
+
   it "flags missing references" do
     project = make_project
     project.incomes << Lifeplan::Records::Income.from_hash({
