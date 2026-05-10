@@ -120,6 +120,51 @@ module Lifeplan
         render(payload(data: data, text: text, csv: csv_str, markdown: markdown))
       end
 
+      desc "mortgage", "Amortize a mortgage month-by-month with optional rate changes"
+      method_option :principal, type: :numeric, required: true
+      method_option :rate, type: :numeric, required: true
+      method_option :payment, type: :numeric, required: true
+      method_option :frequency, type: :string, default: "monthly"
+      method_option :from, type: :string
+      method_option :to, type: :string
+      method_option :"rate-changes", type: :string
+      def mortgage
+        result = Lifeplan::Calc.mortgage(
+          principal: options[:principal],
+          rate: options[:rate],
+          payment: options[:payment],
+          frequency: options[:frequency],
+          from: options[:from],
+          to: options[:to],
+          rate_changes: options[:"rate-changes"],
+        )
+        summary = {
+          "principal" => result[:principal],
+          "total_interest" => result[:total_interest],
+          "total_principal" => result[:total_principal],
+          "total_payment" => result[:total_payment],
+          "final_year" => result[:final_year],
+          "final_period" => result[:final_period],
+          "periods" => result[:periods],
+        }
+        text_lines = summary.map { |k, v| "#{k}: #{v}" }
+        text_lines << ""
+        text_lines << format("%-6s %12s %12s %12s", "year", "interest", "principal", "payment")
+        result[:yearly].each do |row|
+          text_lines << format(
+            "%-6d %12d %12d %12d", row["year"], row["interest"], row["principal"], row["payment"]
+          )
+        end
+        csv_str = CSV.generate do |csv|
+          csv << ["year", "interest", "principal", "payment", "rate"]
+          result[:yearly].each { |row| csv << [row["year"], row["interest"], row["principal"], row["payment"], row["rate"]] }
+        end
+        markdown = "| year | interest | principal | payment |\n| ---: | ---: | ---: | ---: |\n" +
+          result[:yearly].map { |r| "| #{r["year"]} | #{r["interest"]} | #{r["principal"]} | #{r["payment"]} |" }.join("\n")
+        data = summary.merge("yearly" => result[:yearly])
+        render(payload(data: data, text: text_lines.join("\n"), csv: csv_str, markdown: markdown))
+      end
+
       desc "inflation", "Calculate inflation-adjusted value"
       method_option :amount, type: :numeric, required: true
       method_option :rate, type: :numeric, required: true

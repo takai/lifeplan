@@ -70,6 +70,53 @@ RSpec.describe("calc CLI") do
     expect(out.lines.size).to(be >= 5)
   end
 
+  it "calc mortgage emits json with yearly breakdown and totals" do
+    out = capture do
+      cli.start([
+        "calc",
+        "mortgage",
+        "--principal",
+        "7487975",
+        "--rate",
+        "0.0059",
+        "--payment",
+        "76754",
+        "--from",
+        "2026-05",
+        "--format",
+        "json",
+      ])
+    end
+    parsed = JSON.parse(out)
+    expect(parsed["data"]["final_year"]).to(eq(2034))
+    expect(parsed["data"]["final_period"]).to(be_between(7, 10))
+    expect(parsed["data"]["yearly"]).to(be_an(Array))
+  end
+
+  it "calc mortgage honors --rate-changes" do
+    out = capture do
+      cli.start([
+        "calc",
+        "mortgage",
+        "--principal",
+        "1000000",
+        "--rate",
+        "0.01",
+        "--payment",
+        "50000",
+        "--from",
+        "2030-01",
+        "--rate-changes",
+        "2031:0.05",
+        "--format",
+        "json",
+      ])
+    end
+    yearly = JSON.parse(out)["data"]["yearly"]
+    rate_2031 = yearly.find { |r| r["year"] == 2031 }["rate"]
+    expect(rate_2031).to(eq(0.05))
+  end
+
   it "calc required-savings inverts savings" do
     out = capture do
       cli.start([
