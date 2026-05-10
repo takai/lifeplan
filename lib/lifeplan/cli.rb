@@ -47,7 +47,7 @@ module Lifeplan
     class_option :format,
       type: :string,
       default: "text",
-      enum: ["text", "json", "csv", "markdown"],
+      enum: ["text", "json", "csv", "markdown", "table", "md"],
       desc: "Output format"
     class_option :quiet, type: :boolean, default: false
     class_option :verbose, type: :boolean, default: false
@@ -181,12 +181,13 @@ module Lifeplan
       render(diff_payload(options))
     end
 
-    desc "compare BASE TARGET", "Compare two scenarios"
-    method_option :scenario, type: :string
+    desc "compare SCENARIO [SCENARIO...]", "Compare one or more scenarios side by side"
     method_option :from, type: :numeric
     method_option :to, type: :numeric
-    def compare(base, target)
-      render(compare_payload(base, target, options))
+    method_option :at, type: :numeric
+    method_option :metrics, type: :string
+    def compare(*scenarios)
+      render(compare_payload(scenarios, options))
     end
 
     desc "export TARGET [ARGS...]", "Export project data, forecasts, scenarios, comparisons, or validation"

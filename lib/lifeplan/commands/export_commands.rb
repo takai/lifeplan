@@ -59,10 +59,13 @@ module Lifeplan
       end
 
       def export_comparison_payload(args, opts)
-        base = args[0] || "base"
-        target = args[1] || opts[:scenario] ||
-          raise(Lifeplan::InvalidArguments, "comparison requires <base> <target> args or --scenario")
-        compare_payload(base, target, opts)
+        scenario_ids = args.dup
+        scenario_ids << opts[:scenario] if scenario_ids.empty? && opts[:scenario]
+        if scenario_ids.empty?
+          raise Lifeplan::InvalidArguments, "comparison requires at least one scenario id"
+        end
+
+        compare_payload(scenario_ids, opts)
       end
 
       def export_validation_payload(_args, opts)

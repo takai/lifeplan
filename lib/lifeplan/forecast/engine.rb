@@ -21,6 +21,7 @@ module Lifeplan
         liabilities = @project.liabilities.map { |l| Liability.new(l, @from, @to) }
         asset_balances = @project.assets.to_h { |a| [a.id, a.amount.to_f] }
         cash_id = cash_asset_id
+        liquid_ids = liquid_asset_ids
         cash_pool = 0.0
         warnings = []
         rows = []
@@ -61,6 +62,7 @@ module Lifeplan
           liability_balance = liabilities.sum(&:balance)
 
           asset_balance = asset_balances.values.sum.round + cash_pool.round
+          liquid_balance = liquid_ids.sum { |id| asset_balances[id].to_f }.round + cash_pool.round
           rows << YearRow.new(
             year: year,
             ages: ages_for(year),
@@ -70,6 +72,7 @@ module Lifeplan
             event_expense: event_expense,
             net_cashflow: net_cashflow,
             asset_balance: asset_balance,
+            liquid_balance: liquid_balance,
             liability_balance: liability_balance,
             net_worth: asset_balance - liability_balance,
             details: build_details(asset_balances, contributions, asset_changes, withdrawals),
@@ -178,6 +181,10 @@ module Lifeplan
 
       def cash_asset_id
         @project.assets.find { |a| a.category == "cash" }&.id
+      end
+
+      def liquid_asset_ids
+        @project.assets.select { |a| a.category == "cash" || a.liquid }.map(&:id)
       end
 
       def grow_assets(balances)
