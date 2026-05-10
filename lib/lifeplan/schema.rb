@@ -89,6 +89,7 @@ module Lifeplan
       field(:category, :string, description: "Income category"),
       field(:person_id, :string, description: "Related person"),
       field(:tax_treatment, :string, description: "Tax handling label"),
+      field(:contribute_to, :string, description: "Asset id that receives this income (no cashflow effect)"),
       field(:notes, :string, description: "Notes"),
     ].freeze
 
@@ -111,6 +112,7 @@ module Lifeplan
       field(:category, :string, description: "Expense category"),
       field(:person_id, :string, description: "Related person"),
       field(:essential, :boolean, description: "Essential flag"),
+      field(:contribute_to, :string, description: "Asset id that this expense funds (e.g. NISA, iDeCo)"),
       field(:notes, :string, description: "Notes"),
     ].freeze
 
@@ -164,6 +166,7 @@ module Lifeplan
         description: "Financial direction",
         allowed: ["income", "expense", "asset_change", "liability_change", "informational"],
       ),
+      field(:target_asset_id, :string, description: "Asset id targeted by an asset_change event"),
       field(:notes, :string, description: "Notes"),
     ].freeze
 
