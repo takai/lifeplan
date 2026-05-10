@@ -253,6 +253,79 @@ RSpec.describe(Lifeplan::Forecast::Engine) do
     expect(details["assets"]).to(include("cash" => 1_000_000, "mutual" => 2_000_000))
   end
 
+  it "transfers periodic contributions between assets without touching cashflow" do
+    project = project_with(start: 2026, last: 2027) do |p|
+      p.assets << asset(id: "cash", amount: 5_000_000, return: 0, category: "cash")
+      p.assets << asset(id: "mutual-funds", amount: 0, return: 0)
+      p.contributions << Lifeplan::Records::Contribution.from_hash({
+        "id" => "nisa",
+        "name" => "NISA",
+        "amount" => 1_200_000,
+        "frequency" => "yearly",
+        "from" => 2026,
+        "to" => 2027,
+        "from_asset" => "cash",
+        "to_asset" => "mutual-funds",
+        "tax_treatment" => "nisa",
+      })
+    end
+
+    result = described_class.new(project, include_details: true).call
+    year1 = result.years[0]
+    expect(year1.net_cashflow).to(eq(0))
+    expect(year1.details["assets"]).to(include("cash" => 3_800_000, "mutual-funds" => 1_200_000))
+    contribution = year1.details["contributions"].find { |c| c["record_id"] == "nisa" }
+    expect(contribution).to(include(
+      "from_asset" => "cash",
+      "to_asset" => "mutual-funds",
+      "amount" => 1_200_000,
+      "tax_treatment" => "nisa",
+    ))
+
+    year2 = result.years[1]
+    expect(year2.details["assets"]).to(include("cash" => 2_600_000, "mutual-funds" => 2_400_000))
+  end
+
+  it "treats monthly contribution amounts as annualized" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.assets << asset(id: "cash", amount: 1_000_000, return: 0, category: "cash")
+      p.assets << asset(id: "dc-pension", amount: 0, return: 0)
+      p.contributions << Lifeplan::Records::Contribution.from_hash({
+        "id" => "ideco",
+        "name" => "iDeCo",
+        "amount" => 23_000,
+        "frequency" => "monthly",
+        "from" => 2026,
+        "to" => 2026,
+        "from_asset" => "cash",
+        "to_asset" => "dc-pension",
+      })
+    end
+
+    result = described_class.new(project, include_details: true).call
+    expect(result.years.first.details["assets"]).to(include("dc-pension" => 276_000))
+  end
+
+  it "supports one-time 'all' transfers (e.g. DC pension lump-sum)" do
+    project = project_with(start: 2026, last: 2027) do |p|
+      p.assets << asset(id: "cash", amount: 0, return: 0, category: "cash")
+      p.assets << asset(id: "dc-pension", amount: 5_000_000, return: 0)
+      p.contributions << Lifeplan::Records::Contribution.from_hash({
+        "id" => "dc-lumpsum",
+        "name" => "DC Lump Sum",
+        "amount" => "all",
+        "year" => 2027,
+        "from_asset" => "dc-pension",
+        "to_asset" => "cash",
+        "tax_treatment" => "retirement_income",
+      })
+    end
+
+    result = described_class.new(project, include_details: true).call
+    expect(result.years[0].details["assets"]).to(include("dc-pension" => 5_000_000, "cash" => 0))
+    expect(result.years[1].details["assets"]).to(include("dc-pension" => 0, "cash" => 5_000_000))
+  end
+
   it "summary tracks min, retirement, and totals" do
     project = project_with(start: 2026, last: 2030) do |p|
       person = Lifeplan::Records::Person.from_hash({

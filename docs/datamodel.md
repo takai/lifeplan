@@ -21,6 +21,7 @@ Expense
 Asset
 Liability
 Event
+Contribution
 Assumption
 Scenario
 ScenarioOverride
@@ -43,6 +44,7 @@ Project
   ├── Assets
   ├── Liabilities
   ├── Events
+  ├── Contributions
   ├── Assumptions
   ├── Scenarios
   ├── Proposals
@@ -222,6 +224,7 @@ Represents one life planning workspace.
 | `assets`      | array of Asset      |       No | Asset records                   |
 | `liabilities` | array of Liability  |       No | Liability records               |
 | `events`      | array of Event      |       No | Life event records              |
+| `contributions` | array of Contribution | No | Asset-to-asset transfers (NISA, iDeCo, etc.) |
 | `assumptions` | array of Assumption |       No | Planning assumptions            |
 | `scenarios`   | array of Scenario   |       No | Scenario definitions            |
 | `proposals`   | array of Proposal   |       No | Pending change proposals        |
@@ -635,6 +638,110 @@ Either `year` or `from` / `to` should exist.
 If `impact_type` is `income`, `expense`, `asset_change`, or `liability_change`, `amount` should exist.
 
 If `person_id` is provided, it should reference an existing person.
+
+## 16a. Contribution
+
+Represents an explicit transfer between two assets, such as a NISA or iDeCo
+contribution from cash into an investment asset, or a lump-sum distribution
+back into cash.
+
+A `Contribution` differs from an `Expense` with `contribute_to`: it has no
+cashflow effect (it is a pure asset-to-asset transfer) and carries explicit
+`from_asset`, `to_asset`, and `tax_treatment` fields.
+
+### Fields
+
+| Field           | Type                  | Required | Description                                   |
+| --------------- | --------------------- | -------: | --------------------------------------------- |
+| `id`            | string                |      Yes | Contribution ID                               |
+| `name`          | string                |      Yes | Human-readable name                           |
+| `amount`        | integer or `"all"`    |      Yes | Per-frequency amount, or `"all"` to drain     |
+| `currency`      | currency_code         |       No | Currency                                      |
+| `frequency`     | string                |       No | `once`, `monthly`, `yearly`                   |
+| `from`          | year                  |       No | Start year for periodic transfers             |
+| `to`            | year                  |       No | End year for periodic transfers               |
+| `year`          | year                  |       No | One-time transfer year                        |
+| `from_asset`    | string                |      Yes | Source asset id (debited)                     |
+| `to_asset`      | string                |      Yes | Destination asset id (credited)               |
+| `tax_treatment` | string                |       No | Tax handling label                            |
+| `person_id`     | string                |       No | Related person                                |
+| `notes`         | string                |       No | Notes                                         |
+
+### Tax Treatment Examples
+
+```text
+nisa
+ideco_deduction
+retirement_income
+none
+```
+
+### Forecast Behavior
+
+In the annual forecast:
+
+- `amount` is debited from `from_asset` and credited to `to_asset`.
+- `monthly` frequency is annualized (`amount * 12`).
+- A periodic contribution is active when `from <= year <= to`.
+- A one-time transfer applies in `year` only.
+- If `amount` is the literal string `"all"`, the full current `from_asset`
+  balance is transferred.
+
+A contribution does **not** affect `income`, `expense`, or `net_cashflow`.
+
+### Examples
+
+```json
+{
+  "id": "nisa-contribution",
+  "name": "NISA Contribution",
+  "amount": 1200000,
+  "frequency": "yearly",
+  "from": 2026,
+  "to": 2032,
+  "from_asset": "cash",
+  "to_asset": "mutual-funds",
+  "tax_treatment": "nisa",
+  "person_id": "self"
+}
+```
+
+```json
+{
+  "id": "ideco-contribution",
+  "name": "iDeCo Contribution",
+  "amount": 23000,
+  "frequency": "monthly",
+  "from": 2026,
+  "to": 2042,
+  "from_asset": "cash",
+  "to_asset": "dc-pension",
+  "tax_treatment": "ideco_deduction",
+  "person_id": "self"
+}
+```
+
+```json
+{
+  "id": "dc-lumpsum",
+  "name": "DC Pension Lump Sum",
+  "year": 2037,
+  "amount": "all",
+  "from_asset": "dc-pension",
+  "to_asset": "cash",
+  "tax_treatment": "retirement_income"
+}
+```
+
+### Validation Rules
+
+`from_asset` and `to_asset` must reference existing assets.
+
+`from_asset` and `to_asset` must differ.
+
+If `person_id` is provided, it should reference an existing person.
+
+Either `year` or `from`/`to` should be provided for periodic transfers.
 
 ## 17. Assumption
 
@@ -1105,6 +1212,9 @@ The following references should be validated.
 | Asset            | `person_id`           | Person                        |
 | Event            | `person_id`           | Person                        |
 | Liability        | `secured_by_asset_id` | Asset                         |
+| Contribution     | `from_asset`          | Asset                         |
+| Contribution     | `to_asset`            | Asset                         |
+| Contribution     | `person_id`           | Person                        |
 | Scenario         | `base`                | Scenario                      |
 | ScenarioOverride | `path`                | Existing or valid target path |
 | Growth field     | string value          | Assumption                    |
@@ -1198,6 +1308,7 @@ Expense
 Asset
 Liability
 Event
+Contribution
 Assumption
 Scenario
 ScenarioOverride

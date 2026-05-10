@@ -12,6 +12,7 @@ module Lifeplan
     Asset = Base.define("asset", Schema::ASSET)
     Liability = Base.define("liability", Schema::LIABILITY)
     Event = Base.define("event", Schema::EVENT)
+    Contribution = Base.define("contribution", Schema::CONTRIBUTION)
     Assumption = Base.define("assumption", Schema::ASSUMPTION)
     Scenario = Base.define("scenario", Schema::SCENARIO)
 
@@ -23,6 +24,7 @@ module Lifeplan
       "asset" => Asset,
       "liability" => Liability,
       "event" => Event,
+      "contribution" => Contribution,
       "assumption" => Assumption,
       "scenario" => Scenario,
     }.freeze

@@ -13,7 +13,7 @@ module Lifeplan
           start_year = project.start_year
           end_year = project.end_year
 
-          [:incomes, :expenses, :events].each do |coll|
+          [:incomes, :expenses, :events, :contributions].each do |coll|
             project.public_send(coll).each do |record|
               type = Lifeplan::Project::COLLECTIONS[coll.to_s]
               issues.concat(check_record(type, record, start_year, end_year))
