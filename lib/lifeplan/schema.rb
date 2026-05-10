@@ -113,6 +113,7 @@ module Lifeplan
       field(:person_id, :string, description: "Related person"),
       field(:essential, :boolean, description: "Essential flag"),
       field(:contribute_to, :string, description: "Asset id that this expense funds (e.g. NISA, iDeCo)"),
+      field(:transitions, :array, description: "Lifestage transitions overriding amount/growth"),
       field(:notes, :string, description: "Notes"),
     ].freeze
 

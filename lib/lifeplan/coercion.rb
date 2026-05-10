@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "date"
+require "json"
 require "lifeplan/errors"
 require "lifeplan/schema"
 
@@ -97,7 +98,14 @@ module Lifeplan
       def coerce_array(raw)
         return raw if raw.is_a?(Array)
 
-        raw.to_s.split(",").map(&:strip).reject(&:empty?)
+        str = raw.to_s.strip
+        if str.start_with?("[")
+          parsed = JSON.parse(str)
+          return parsed if parsed.is_a?(Array)
+        end
+        str.split(",").map(&:strip).reject(&:empty?)
+      rescue JSON::ParserError
+        raise InvalidArguments, "Expected JSON array, got #{raw.inspect}"
       end
 
       def coerce_any(raw)

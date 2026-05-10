@@ -72,6 +72,44 @@ RSpec.describe(Lifeplan::Forecast::Engine) do
     expect(result.years[1].expense).to(eq(1_100_000))
   end
 
+  it "applies lifestage transitions to expense amount and resets growth base year" do
+    project = project_with(start: 2026, last: 2034) do |p|
+      p.expenses << expense(
+        amount: 6_400_000,
+        from: 2026,
+        to: 2034,
+        growth: 0.1,
+        transitions: [
+          { "year" => 2033, "amount" => 5_400_000, "label" => "child independence" },
+        ],
+      )
+    end
+
+    result = described_class.new(project).call
+    expect(result.years[0].expense).to(eq(6_400_000))
+    expect(result.years[6].expense).to(eq((6_400_000 * 1.1**6).round))
+    expect(result.years[7].expense).to(eq(5_400_000))
+    expect(result.years[8].expense).to(eq((5_400_000 * 1.1).round))
+  end
+
+  it "transition growth override takes precedence over expense growth" do
+    project = project_with(start: 2026, last: 2028) do |p|
+      p.expenses << expense(
+        amount: 1_000_000,
+        from: 2026,
+        to: 2028,
+        growth: 0.1,
+        transitions: [
+          { "year" => 2027, "amount" => 500_000, "growth" => 0 },
+        ],
+      )
+    end
+
+    result = described_class.new(project).call
+    expect(result.years[1].expense).to(eq(500_000))
+    expect(result.years[2].expense).to(eq(500_000))
+  end
+
   it "compounds asset returns and includes net cashflow in cash pool" do
     project = project_with(start: 2026, last: 2027) do |p|
       p.assets << asset(amount: 1_000_000, return: 0.05)
