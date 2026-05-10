@@ -78,6 +78,73 @@ RSpec.describe("scenario and compare commands") do
     end
   end
 
+  it "apply derives a new scenario with overrides and validates them" do
+    with_tmp_project do |dir|
+      init(dir)
+      cli.start([
+        "scenario",
+        "apply",
+        "base",
+        "--to",
+        "early",
+        "--override",
+        "income.salary.to=2026",
+        "--override",
+        "assumption.inflation.value=0.05",
+        "--project",
+        dir,
+      ])
+      project = Lifeplan::Project.load(dir)
+      derived = project.scenarios.find { |s| s.id == "early" }
+      expect(derived.base).to(eq("base"))
+      expect(derived.overrides.size).to(eq(2))
+      resolved = Lifeplan::Scenarios::Resolver.new(project).call("early")
+      expect(resolved.incomes.first.to).to(eq(2026))
+      expect(resolved.assumptions.first.value).to(eq(0.05))
+    end
+  end
+
+  it "apply rejects duplicate target scenario id" do
+    with_tmp_project do |dir|
+      init(dir)
+      cli.start(["scenario", "create", "early", "--project", dir])
+      expect do
+        cli.start([
+          "scenario",
+          "apply",
+          "base",
+          "--to",
+          "early",
+          "--override",
+          "income.salary.to=2026",
+          "--project",
+          dir,
+        ])
+      end.to(raise_error(SystemExit))
+    end
+  end
+
+  it "apply surfaces invalid override paths before saving" do
+    with_tmp_project do |dir|
+      init(dir)
+      expect do
+        cli.start([
+          "scenario",
+          "apply",
+          "base",
+          "--to",
+          "broken",
+          "--override",
+          "income.ghost.amount=1",
+          "--project",
+          dir,
+        ])
+      end.to(raise_error(SystemExit))
+      project = Lifeplan::Project.load(dir)
+      expect(project.scenarios.map(&:id)).not_to(include("broken"))
+    end
+  end
+
   it "compare emits one row per scenario in JSON" do
     with_tmp_project do |dir|
       init(dir)

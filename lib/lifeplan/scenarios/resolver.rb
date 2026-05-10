@@ -70,6 +70,7 @@ module Lifeplan
         raise Lifeplan::InvalidArguments, "scenario target #{path.type} '#{path.id}' not found" unless idx
 
         if path.field
+          Lifeplan::Coercion.lookup_field(path.type, path.field)
           field = path.field.to_sym
           coerced = if path.type == "assumption" && field == :value
             value
@@ -84,13 +85,23 @@ module Lifeplan
       end
 
       def apply_remove(project, path)
-        project.collection(path.type).reject! { |r| r.id == path.id }
+        collection = project.collection(path.type)
+        unless collection.any? { |r| r.id == path.id }
+          raise Lifeplan::InvalidArguments, "scenario target #{path.type} '#{path.id}' not found"
+        end
+
+        collection.reject! { |r| r.id == path.id }
       end
 
       def apply_add(project, path, value)
+        collection = project.collection(path.type)
+        if collection.any? { |r| r.id == path.id }
+          raise Lifeplan::InvalidArguments, "scenario target #{path.type} '#{path.id}' already exists"
+        end
+
         klass = Lifeplan::Records.class_for(path.type)
         record = klass.from_hash((value || {}).merge("id" => path.id))
-        project.collection(path.type) << record
+        collection << record
       end
 
       def clone_project(src)

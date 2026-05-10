@@ -686,7 +686,46 @@ lifeplan scenario set early-retirement incomes.salary.to 2040
 
 ---
 
-## 14.4 `lifeplan scenario remove`
+## 14.4 `lifeplan scenario apply`
+
+Create a derived scenario by stacking overrides on top of an existing scenario.
+
+```bash
+lifeplan scenario apply <scenario-id> --to <new-id> [--override PATH=VALUE ...]
+```
+
+The new scenario is saved with `base = <scenario-id>` and the supplied overrides
+applied as `set` operations. Override paths are validated against the resolved
+project before saving; invalid paths abort the command without modifying state.
+
+### Options
+
+| Option                  | Description                              |
+| ----------------------- | ---------------------------------------- |
+| `--to <id>`             | ID of the new scenario (required)        |
+| `--name <name>`         | Human-readable name                      |
+| `--override PATH=VALUE` | Override (`set` op); repeat for multiple |
+| `--dry-run`             | Validate but do not persist              |
+
+### Example
+
+```bash
+lifeplan scenario apply base --to early-retirement \
+    --override "income.salary.to=2032" \
+    --override "expense.living-retirement.amount=4000000"
+```
+
+### Path Syntax
+
+`<record-type>.<record-id>.<field>` — supported types are `assumption`,
+`income`, `expense`, `asset`, `liability`, `event`. For `assumption`, the
+`.value` field is added automatically when omitted (`assumption.inflation` →
+`assumption.inflation.value`). See `docs/datamodel.md` § 31 for the full path
+syntax and § 19 for `op` semantics (`set` / `add` / `remove`).
+
+---
+
+## 14.5 `lifeplan scenario remove`
 
 Remove a scenario.
 
@@ -696,7 +735,7 @@ lifeplan scenario remove <scenario-id>
 
 ---
 
-## 14.5 `lifeplan compare`
+## 14.6 `lifeplan compare`
 
 Compare one or more scenarios side by side. Each scenario contributes one row of
 key summary metrics.
