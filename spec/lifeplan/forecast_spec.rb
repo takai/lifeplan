@@ -116,6 +116,105 @@ RSpec.describe(Lifeplan::Forecast::Engine) do
     expect(result.years[2].net_cashflow).to(eq(-1_000_000))
   end
 
+  it "routes expense contributions into the named asset" do
+    project = project_with(start: 2026, last: 2027) do |p|
+      p.incomes << income(amount: 300_000, from: 2026, to: 2027)
+      p.expenses << expense(
+        id: "nisa_in", amount: 100_000, from: 2026, to: 2027, contribute_to: "nisa",
+      )
+      p.assets << asset(id: "cash", amount: 0, return: 0, category: "cash")
+      p.assets << asset(id: "nisa", amount: 0, return: 0)
+    end
+
+    result = described_class.new(project).call
+    year1 = result.years[0]
+    year2 = result.years[1]
+    expect(year1.expense).to(eq(100_000))
+    expect(year1.net_cashflow).to(eq(200_000))
+    expect(year1.asset_balance).to(eq(300_000))
+    expect(year2.asset_balance).to(eq(600_000))
+  end
+
+  it "income contributions accrue to the asset without inflating cashflow" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.incomes << income(
+        id: "match", amount: 50_000, from: 2026, to: 2026, contribute_to: "dc",
+      )
+      p.assets << asset(id: "dc", amount: 0, return: 0)
+    end
+
+    result = described_class.new(project).call
+    row = result.years.first
+    expect(row.income).to(eq(0))
+    expect(row.net_cashflow).to(eq(0))
+    expect(row.asset_balance).to(eq(50_000))
+  end
+
+  it "applies asset_change events to the target asset" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.assets << asset(id: "cash", amount: 1_000_000, return: 0)
+      p.events << Lifeplan::Records::Event.from_hash({
+        "id" => "windfall",
+        "name" => "Windfall",
+        "year" => 2026,
+        "amount" => 500_000,
+        "impact_type" => "asset_change",
+        "target_asset_id" => "cash",
+      })
+    end
+
+    result = described_class.new(project).call
+    expect(result.years.first.asset_balance).to(eq(1_500_000))
+    expect(result.years.first.net_cashflow).to(eq(0))
+  end
+
+  it "withdraws from investment assets when cash goes negative" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.assumptions << Lifeplan::Records::Assumption.from_hash({
+        "id" => "withdrawal_order",
+        "name" => "Order",
+        "value" => ["mutual"],
+      })
+      p.expenses << expense(amount: 600_000, from: 2026, to: 2026)
+      p.assets << asset(id: "cash", amount: 0, return: 0, category: "cash")
+      p.assets << asset(id: "mutual", amount: 1_000_000, return: 0, category: "investment")
+    end
+
+    result = described_class.new(project).call
+    row = result.years.first
+    expect(row.net_cashflow).to(eq(-600_000))
+    expect(row.asset_balance).to(eq(400_000))
+    expect(result.warnings).to(be_empty)
+  end
+
+  it "warns when withdrawal sources are exhausted" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.assumptions << Lifeplan::Records::Assumption.from_hash({
+        "id" => "withdrawal_order",
+        "name" => "Order",
+        "value" => ["mutual"],
+      })
+      p.expenses << expense(amount: 600_000, from: 2026, to: 2026)
+      p.assets << asset(id: "cash", amount: 0, return: 0, category: "cash")
+      p.assets << asset(id: "mutual", amount: 100_000, return: 0, category: "investment")
+    end
+
+    result = described_class.new(project).call
+    expect(result.warnings).to(include(a_hash_including("year" => 2026, "code" => "WITHDRAWAL_SHORTFALL")))
+  end
+
+  it "include_details exposes per-asset balances on each year" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.assets << asset(id: "cash", amount: 1_000_000, return: 0)
+      p.assets << asset(id: "mutual", amount: 2_000_000, return: 0)
+    end
+
+    result = described_class.new(project, include_details: true).call
+    details = result.years.first.details
+    expect(details).to(include("assets"))
+    expect(details["assets"]).to(include("cash" => 1_000_000, "mutual" => 2_000_000))
+  end
+
   it "summary tracks min, retirement, and totals" do
     project = project_with(start: 2026, last: 2030) do |p|
       person = Lifeplan::Records::Person.from_hash({

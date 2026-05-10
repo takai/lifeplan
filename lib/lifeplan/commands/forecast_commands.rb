@@ -72,6 +72,7 @@ module Lifeplan
           scenario_id: opts[:scenario] || "base",
           from: opts[:from]&.to_i,
           to: opts[:to]&.to_i,
+          include_details: opts[:"include-details"] || opts[:include_details] || false,
         ).call
       end
 

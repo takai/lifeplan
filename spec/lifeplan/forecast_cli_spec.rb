@@ -93,6 +93,21 @@ RSpec.describe("forecast and explain commands") do
     end
   end
 
+  it "forecast --include-details exposes per-asset balances in json" do
+    with_tmp_project do |dir|
+      init_with_data(dir)
+      out = capture_stdout do
+        cli.start([
+          "forecast", "--project", dir, "--format", "json", "--include-details",
+        ])
+      end
+      data = JSON.parse(out)
+      details = data["data"]["years"][0]["details"]
+      expect(details).to(include("assets"))
+      expect(details["assets"]).to(include("cash"))
+    end
+  end
+
   it "explain year prints contributors" do
     with_tmp_project do |dir|
       init_with_data(dir)
