@@ -58,6 +58,45 @@ module Lifeplan
         ))
       end
 
+      desc "apply SCENARIO_ID", "Create a derived scenario by stacking overrides on top of an existing one"
+      method_option :to, type: :string, required: true, desc: "ID of the new scenario to create"
+      method_option :name, type: :string
+      method_option :override,
+        type: :string,
+        repeatable: true,
+        default: [],
+        desc: "Override expressed as PATH=VALUE (repeatable)"
+      method_option :"dry-run", type: :boolean, default: false
+      def apply(scenario_id)
+        project = load_project
+        unless scenario_id == "base" || project.scenarios.any? { |s| s.id == scenario_id }
+          raise Lifeplan::ScenarioNotFound, "scenario '#{scenario_id}' not found"
+        end
+
+        new_id = options[:to]
+        if project.scenarios.any? { |s| s.id == new_id }
+          raise Lifeplan::InvalidArguments, "scenario '#{new_id}' already exists"
+        end
+
+        overrides = options[:override].map { |raw| parse_override_arg(raw) }
+
+        scenario = Lifeplan::Records::Scenario.from_hash({
+          "id" => new_id,
+          "name" => options[:name] || new_id,
+          "base" => scenario_id,
+          "overrides" => overrides,
+        })
+
+        project.scenarios << scenario
+        Lifeplan::Scenarios::Resolver.new(project).call(new_id)
+        project.save unless options[:"dry-run"]
+        render(payload(
+          data: scenario_summary(scenario).merge("applied" => !options[:"dry-run"]),
+          text: "Created scenario '#{new_id}' from '#{scenario_id}' with #{overrides.size} override(s)" \
+            "#{options[:"dry-run"] ? " (dry-run)" : ""}",
+        ))
+      end
+
       desc "remove SCENARIO_ID", "Remove a scenario"
       def remove(scenario_id)
         project = load_project
@@ -87,6 +126,13 @@ module Lifeplan
         return "#{type}.#{parts[1]}.value" if parts.size == 2 && type == "assumption"
 
         path
+      end
+
+      def parse_override_arg(raw)
+        key, _, val = raw.partition("=")
+        raise Lifeplan::InvalidArguments, "override must be in 'path=value' form: #{raw}" if val.empty?
+
+        { "op" => "set", "path" => normalize_path(key), "value" => coerce_override_value(val) }
       end
 
       def coerce_override_value(raw)
