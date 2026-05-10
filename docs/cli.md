@@ -698,33 +698,45 @@ lifeplan scenario remove <scenario-id>
 
 ## 14.5 `lifeplan compare`
 
-Compare two scenarios.
+Compare one or more scenarios side by side. Each scenario contributes one row of
+key summary metrics.
 
 ```bash
-lifeplan compare <base-scenario> <target-scenario>
+lifeplan compare <scenario-id> [<scenario-id> ...]
 ```
 
 ### Options
 
-| Option              | Description                       |
-| ------------------- | --------------------------------- |
-| `--from <year>`     | Start year                        |
-| `--to <year>`       | End year                          |
-| `--metric <metric>` | Compare a specific metric         |
-| `--format <format>` | `text`, `json`, `csv`, `markdown` |
+| Option                | Description                                                |
+| --------------------- | ---------------------------------------------------------- |
+| `--from <year>`       | Forecast start year                                        |
+| `--to <year>`         | Forecast end year                                          |
+| `--at <year>`         | Year used for `net_worth@` and `liquid@` (defaults to end) |
+| `--metrics <list>`    | Comma-separated subset of metrics to emit                  |
+| `--format <format>`   | `text`/`table`, `json`, `csv`, `markdown`/`md`             |
 
-### Output
+### Metrics
 
-Should include:
+| Metric                | Description                                                |
+| --------------------- | ---------------------------------------------------------- |
+| `net_worth`           | Net worth at `--at` (default: end year)                    |
+| `liquid`              | Cash + liquid investments at `--at`                        |
+| `depletion_year`      | First year liquid balance goes negative, or `—`            |
+| `min_liquid_year`     | Year of minimum liquid balance                             |
+| `final_asset_balance` | Asset balance at end of forecast                           |
+| `total_income`        | Sum of income across the forecast period                   |
+| `total_expense`       | Sum of expense across the forecast period                  |
+
+`liquid` is computed as the sum of asset balances where `category == "cash"` or
+the asset's `liquid` flag is true.
+
+### Example
 
 ```text
-Changed assumptions
-Changed records
-Yearly differences
-Key metric differences
-First negative asset year, if any
-Minimum asset balance
-Asset balance at retirement, if available
+scenario       net_worth@2066  liquid@2066  depletion_year  min_liquid_year
+base                   -2,395       -4,860            2061             2066
+side-fire-55          -13,809      -16,274            2047             2066
+conservative          -18,849      -21,314            2049             2066
 ```
 
 ---

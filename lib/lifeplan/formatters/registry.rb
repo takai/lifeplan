@@ -7,8 +7,11 @@ module Lifeplan
     module Registry
       extend self
 
+      FORMAT_ALIASES = { "table" => "text", "md" => "markdown" }.freeze
+
       def render(payload, format: "text", io: $stdout)
         format = (format || "text").to_s
+        format = FORMAT_ALIASES.fetch(format, format)
         case format
         when "json"
           io.puts(JSON.pretty_generate(json_envelope(payload)))
