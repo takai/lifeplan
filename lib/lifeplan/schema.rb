@@ -146,6 +146,7 @@ module Lifeplan
         description: "Payment frequency",
         allowed: ["monthly", "yearly"],
       ),
+      field(:rate_changes, :any, description: "Map of year => annual rate for variable-rate loans"),
       field(:category, :string, description: "Liability category"),
       field(:secured_by_asset_id, :string, description: "Related asset"),
       field(:notes, :string, description: "Notes"),

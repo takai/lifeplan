@@ -902,7 +902,49 @@ lifeplan calc loan \
 
 ---
 
-## 15.7 `lifeplan calc inflation`
+## 15.7 `lifeplan calc mortgage`
+
+Amortize a mortgage month-by-month, with optional rate changes.
+
+```bash
+lifeplan calc mortgage \
+  --principal <amount> \
+  --rate <rate> \
+  --payment <amount>
+```
+
+### Options
+
+| Option                    | Description                                                                |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `--frequency <frequency>` | `monthly` (default) or `yearly`                                            |
+| `--from <YYYY-MM>`        | First payment year/month (also accepts a year)                             |
+| `--to <YYYY-MM>`          | Cap the schedule at this year/month                                        |
+| `--rate-changes <list>`   | Comma-separated `YYYY:rate` entries applied at the start of the named year |
+| `--format <format>`       | `text`, `json`, `csv`, `markdown`                                          |
+
+### Output
+
+- `principal`, `total_interest`, `total_principal`, `total_payment`
+- `final_year`, `final_period`, `periods`
+- `yearly` table with `year`, `interest`, `principal`, `payment`, `rate`
+
+### Example
+
+```bash
+lifeplan calc mortgage \
+  --principal 7487975 \
+  --rate 0.0059 \
+  --payment 76754 \
+  --from 2026-05 \
+  --rate-changes "2027:0.01,2032:0.015" \
+  --format csv
+```
+
+---
+
+## 15.8 `lifeplan calc inflation`
+
 
 Calculate inflation-adjusted value.
 
@@ -915,7 +957,7 @@ lifeplan calc inflation \
 
 ---
 
-## 15.8 `lifeplan calc grow`
+## 15.9 `lifeplan calc grow`
 
 Generate a growth table.
 

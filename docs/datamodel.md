@@ -535,6 +535,7 @@ Represents debt or future repayment obligation.
 | `years`               | integer       |       No | Repayment duration                          |
 | `payment`             | integer       |       No | Payment amount per frequency                |
 | `frequency`           | string        |       No | Payment frequency                           |
+| `rate_changes`        | object        |       No | Map of `year` → annual rate for variable-rate loans |
 | `category`            | string        |       No | Liability category                          |
 | `secured_by_asset_id` | string        |       No | Related asset                               |
 | `notes`               | string        |       No | Notes                                       |

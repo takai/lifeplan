@@ -74,6 +74,54 @@ RSpec.describe(Lifeplan::Calc) do
     end
   end
 
+  describe ".mortgage" do
+    it "amortizes month-by-month and matches the FP-session example" do
+      result = Lifeplan::Calc.mortgage(
+        principal: 7_487_975, rate: 0.0059, payment: 76_754, frequency: "monthly", from: "2026-05",
+      )
+      expect(result[:final_year]).to(eq(2034))
+      expect(result[:periods]).to(be_between(99, 101))
+      expect(result[:total_interest]).to(be < 200_000)
+    end
+
+    it "applies rate changes at the start of the named year" do
+      flat = Lifeplan::Calc.mortgage(
+        principal: 1_000_000, rate: 0.01, payment: 50_000, from: "2030-01",
+      )
+      bumped = Lifeplan::Calc.mortgage(
+        principal: 1_000_000,
+        rate: 0.01,
+        payment: 50_000,
+        from: "2030-01",
+        rate_changes: { 2031 => 0.05 },
+      )
+      expect(bumped[:total_interest]).to(be > flat[:total_interest])
+    end
+
+    it "accepts rate_changes as a 'YYYY:rate,...' string" do
+      result = Lifeplan::Calc.mortgage(
+        principal: 5_000_000,
+        rate: 0.01,
+        payment: 50_000,
+        from: "2030-01",
+        rate_changes: "2031:0.02,2032:0.03",
+      )
+      rates = result[:yearly].to_h { |row| [row["year"], row["rate"]] }
+      expect(rates[2031]).to(eq(0.02))
+      expect(rates[2032]).to(eq(0.03))
+    end
+
+    it "produces a yearly breakdown that sums to total interest/principal" do
+      result = Lifeplan::Calc.mortgage(
+        principal: 1_000_000, rate: 0.01, payment: 50_000, from: "2030-01",
+      )
+      sum_interest = result[:yearly].sum { |r| r["interest"] }
+      sum_principal = result[:yearly].sum { |r| r["principal"] }
+      expect(sum_interest).to(be_within(2).of(result[:total_interest]))
+      expect(sum_principal).to(be_within(2).of(result[:total_principal]))
+    end
+  end
+
   describe ".inflation" do
     it "discounts to present value at inflation rate" do
       expect(Lifeplan::Calc.inflation(amount: 1_000_000, rate: 0.02, years: 10))
