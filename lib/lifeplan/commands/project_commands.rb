@@ -4,6 +4,7 @@ require "fileutils"
 require "lifeplan/commands/helpers"
 require "lifeplan/storage"
 require "lifeplan/records"
+require "lifeplan/version"
 
 module Lifeplan
   module Commands
@@ -24,6 +25,7 @@ module Lifeplan
           start_year: opts[:"start-year"] || Time.now.year,
           end_year: opts[:"end-year"] || (Time.now.year + 30),
         )
+        project.lifeplan_version = Lifeplan::VERSION
         project.profile = Records::Profile.from_hash(
           "id" => "default",
           "name" => "Default Profile",

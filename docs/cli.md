@@ -1152,6 +1152,64 @@ lifeplan report --scenario base --format markdown
 
 ---
 
+# 16a. Workspace Maintenance
+
+## 16a.1 `lifeplan upgrade`
+
+Migrate an existing workspace to the current CLI version. Reads the
+workspace's `lifeplan_version` from `project.json`, compares it against the
+installed CLI, and applies registered migrations between the two.
+
+```bash
+lifeplan upgrade [--apply] [--from <version>] [--to <version>]
+```
+
+Dry-run is the default — no files are written. Use `--apply --no-dry-run` to
+persist the changes (the `--apply` flag overrides the default `--dry-run`).
+
+### Options
+
+| Option              | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `--dry-run`         | Preview without writing (default: true)                           |
+| `--apply`           | Apply the migrations and update the version marker                |
+| `--from <version>`  | Override the workspace's current version (advanced)               |
+| `--to <version>`    | Target version (default: installed CLI version)                   |
+| `--format <format>` | `text`/`table`, `json`, `csv`, `markdown`/`md`                    |
+
+### Output
+
+Each migration emits a list of `MigrationStep` records:
+
+| Field           | Description                                                  |
+| --------------- | ------------------------------------------------------------ |
+| `version_from`  | Version this step migrates from                              |
+| `version_to`    | Version this step migrates to                                |
+| `path`          | Affected field path (e.g. `lifeplan_version`)                |
+| `operation`     | `add` / `rename` / `remove` / `update`                       |
+| `before`        | Previous value (nil when adding)                             |
+| `after`         | New value (nil when removing)                                |
+| `severity`      | `info` / `warning` / `error`                                 |
+| `note`          | Free-text follow-up suggestion                               |
+
+The payload also carries `from`, `to`, `up_to_date`, `applied`, and `dry_run`
+fields so an agent can branch on the result.
+
+### Pre-versioning workspaces
+
+Workspaces created before the version field existed have no
+`lifeplan_version`. The upgrade command treats this as the `nil` source and
+stamps the workspace with the installed CLI version when `--apply` is set.
+
+### Example
+
+```bash
+lifeplan upgrade --format json
+lifeplan upgrade --apply --no-dry-run
+```
+
+---
+
 # 17. Check Commands
 
 ## 17.1 `lifeplan check`

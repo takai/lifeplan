@@ -77,6 +77,33 @@ RSpec.describe(Lifeplan::Project) do
     end
   end
 
+  it "round-trips lifeplan_version through JSON" do
+    with_tmp_project do |dir|
+      project = described_class.new(
+        path: dir, id: "p", name: "P", currency: "JPY", start_year: 2026, end_year: 2027,
+      )
+      project.lifeplan_version = "0.1.0"
+      project.save
+
+      json = JSON.parse(File.read(File.join(dir, "project.json")))
+      expect(json["lifeplan_version"]).to(eq("0.1.0"))
+      expect(described_class.load(dir).lifeplan_version).to(eq("0.1.0"))
+    end
+  end
+
+  it "omits lifeplan_version from JSON when unset" do
+    with_tmp_project do |dir|
+      project = described_class.new(
+        path: dir, id: "p", name: "P", currency: "JPY", start_year: 2026, end_year: 2027,
+      )
+      project.save
+
+      json = JSON.parse(File.read(File.join(dir, "project.json")))
+      expect(json).not_to(have_key("lifeplan_version"))
+      expect(described_class.load(dir).lifeplan_version).to(be_nil)
+    end
+  end
+
   it "looks up records by id" do
     with_tmp_project do |dir|
       project = described_class.new(path: dir)
