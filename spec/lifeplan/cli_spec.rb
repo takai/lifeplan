@@ -35,27 +35,44 @@ RSpec.describe(Lifeplan::CLI) do
       end
     end
 
-    it "scaffolds agent-facing docs and skills" do
+    it "scaffolds the financial-planner persona and skills" do
       with_tmp_project do |dir|
         described_class.start(["init", dir, "--name", "Scaffold Plan"])
 
         expect(File.exist?(File.join(dir, "CLAUDE.md"))).to(be(true))
-        expect(File.exist?(File.join(dir, "docs/prd.md"))).to(be(true))
-        expect(File.exist?(File.join(dir, "docs/cli.md"))).to(be(true))
-        expect(File.exist?(File.join(dir, "docs/datamodel.md"))).to(be(true))
-        expect(File.exist?(File.join(dir, ".claude/skills/lifeplan-product/SKILL.md"))).to(be(true))
-        expect(File.exist?(File.join(dir, ".claude/skills/lifeplan-cli/SKILL.md"))).to(be(true))
-        expect(File.exist?(File.join(dir, ".claude/skills/lifeplan-data/SKILL.md"))).to(be(true))
+        expect(File.exist?(File.join(dir, ".claude/skills/fp-intake/SKILL.md"))).to(be(true))
+        expect(File.exist?(File.join(dir, ".claude/skills/fp-scenarios/SKILL.md"))).to(be(true))
+        expect(File.exist?(File.join(dir, ".claude/skills/fp-analysis/SKILL.md"))).to(be(true))
       end
     end
 
-    it "copies docs verbatim from the gem" do
+    it "does not copy internal developer docs into the workspace" do
+      with_tmp_project do |dir|
+        described_class.start(["init", dir, "--name", "No Internal Docs"])
+
+        expect(File.exist?(File.join(dir, "docs/prd.md"))).to(be(false))
+        expect(File.exist?(File.join(dir, "docs/cli.md"))).to(be(false))
+        expect(File.exist?(File.join(dir, "docs/datamodel.md"))).to(be(false))
+      end
+    end
+
+    it "copies templates verbatim from the gem" do
       with_tmp_project do |dir|
         described_class.start(["init", dir, "--name", "Verbatim Plan"])
 
-        gem_cli_md = File.read(File.join(Lifeplan::ROOT, "docs/cli.md"))
-        copied_cli_md = File.read(File.join(dir, "docs/cli.md"))
-        expect(copied_cli_md).to(eq(gem_cli_md))
+        gem_claude_md = File.read(File.join(Lifeplan::ROOT, "templates/CLAUDE.md"))
+        copied_claude_md = File.read(File.join(dir, "CLAUDE.md"))
+        expect(copied_claude_md).to(eq(gem_claude_md))
+      end
+    end
+
+    it "does not leave the legacy developer-oriented skills behind" do
+      with_tmp_project do |dir|
+        described_class.start(["init", dir, "--name", "No Legacy Skills"])
+
+        expect(File.exist?(File.join(dir, ".claude/skills/lifeplan-product/SKILL.md"))).to(be(false))
+        expect(File.exist?(File.join(dir, ".claude/skills/lifeplan-cli/SKILL.md"))).to(be(false))
+        expect(File.exist?(File.join(dir, ".claude/skills/lifeplan-data/SKILL.md"))).to(be(false))
       end
     end
 

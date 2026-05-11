@@ -1,0 +1,1612 @@
+# Lifeplan CLI Interface Definition
+
+## 1. Purpose
+
+This document defines the command-line interface for Lifeplan CLI.
+
+Lifeplan CLI is a tool for managing life planning data, running standard life planning calculations, validating assumptions, generating projections, comparing scenarios, and exporting results.
+
+This document defines only the external CLI interface and user-facing behavior. It does not define internal architecture, storage format, libraries, algorithms, or implementation details.
+
+## 2. Command Name
+
+```bash
+lifeplan
+```
+
+## 3. Interface Principles
+
+Lifeplan CLI should provide predictable, scriptable commands.
+
+The CLI should support both human users and LLM agents. Therefore, every command that returns meaningful data should support machine-readable output.
+
+The CLI should separate reading, proposing, applying, validating, calculating, explaining, comparing, and exporting.
+
+The CLI should avoid implicit destructive changes. Commands that modify planning data should support preview behavior.
+
+## 4. Global Options
+
+All commands should support the following global options where applicable.
+
+```bash
+lifeplan <command> [options]
+```
+
+| Option              | Description                                                        |
+| ------------------- | ------------------------------------------------------------------ |
+| `--project <path>`  | Use a specific life planning project directory                     |
+| `--scenario <id>`   | Use a specific scenario                                            |
+| `--format <format>` | Output format. Supported values: `text`, `json`, `csv`, `markdown` |
+| `--quiet`           | Suppress non-essential output                                      |
+| `--verbose`         | Show additional details                                            |
+| `--no-color`        | Disable colored output                                             |
+| `--help`            | Show help                                                          |
+| `--version`         | Show version                                                       |
+
+Default output format should be `text` for human-facing commands.
+
+For LLM-agent usage, `--format json` should be available for all inspection, validation, forecast, explanation, comparison, and change-preview commands.
+
+## 5. Exit Codes
+
+| Code | Meaning                              |
+| ---: | ------------------------------------ |
+|  `0` | Success                              |
+|  `1` | General error                        |
+|  `2` | Invalid command or invalid arguments |
+|  `3` | Validation failed                    |
+|  `4` | Project not found or invalid project |
+|  `5` | Record not found                     |
+|  `6` | Scenario not found                   |
+|  `7` | Change cannot be applied             |
+|  `8` | Forecast cannot be generated         |
+
+## 6. Output Formats
+
+### 6.1 Text
+
+Human-readable output for terminal use.
+
+### 6.2 JSON
+
+Machine-readable output for LLM agents and automation.
+
+JSON output should clearly distinguish:
+
+```text
+data
+warnings
+errors
+metadata
+```
+
+### 6.3 CSV
+
+Tabular output for spreadsheet use.
+
+Mainly used for forecasts, yearly tables, scenario comparisons, and calculation tables.
+
+### 6.4 Markdown
+
+Human-readable report output.
+
+Mainly used for summaries, reports, explanations, and scenario comparisons.
+
+---
+
+# 7. Project Commands
+
+## 7.1 `lifeplan init`
+
+Create a new life planning project.
+
+```bash
+lifeplan init [path]
+```
+
+### Options
+
+| Option                | Description                    |
+| --------------------- | ------------------------------ |
+| `--name <name>`       | Project name                   |
+| `--start-year <year>` | First projection year          |
+| `--end-year <year>`   | Last projection year           |
+| `--currency <code>`   | Currency code. Example: `JPY`  |
+| `--template <name>`   | Create project from a template |
+
+### Behavior
+
+Creates an empty project structure with required initial data.
+
+In addition to `project.json`, `init` scaffolds documents and skills used by
+LLM agents working in the project:
+
+- `CLAUDE.md` — short navigation file pointing at the documents and skills.
+- `docs/prd.md`, `docs/cli.md`, `docs/datamodel.md` — copied from the
+  installed Lifeplan CLI as the source of truth for product scope, command
+  interface, and data model.
+- `.claude/skills/lifeplan-product/SKILL.md`,
+  `.claude/skills/lifeplan-cli/SKILL.md`,
+  `.claude/skills/lifeplan-data/SKILL.md` — task-scoped guidance for Claude
+  Code.
+
+Existing files at the destination are not overwritten.
+
+### Example
+
+```bash
+lifeplan init ./my-lifeplan --name "Family Plan" --start-year 2026 --end-year 2065 --currency JPY
+```
+
+---
+
+## 7.2 `lifeplan status`
+
+Show current project status.
+
+```bash
+lifeplan status
+```
+
+### Output
+
+Should include:
+
+```text
+Project name
+Projection period
+Currency
+Current scenario
+Record counts
+Validation summary
+Warnings
+```
+
+### Example
+
+```bash
+lifeplan status --format json
+```
+
+---
+
+# 8. Schema Commands
+
+## 8.1 `lifeplan schema`
+
+Show supported record types and fields.
+
+```bash
+lifeplan schema [record-type]
+```
+
+### Record Types
+
+```text
+profile
+income
+expense
+asset
+liability
+event
+assumption
+scenario
+```
+
+### Examples
+
+```bash
+lifeplan schema
+lifeplan schema income --format json
+lifeplan schema expense --format json
+```
+
+### Behavior
+
+Returns the expected fields, required fields, optional fields, accepted values, and examples for the specified record type.
+
+---
+
+# 9. Data Inspection Commands
+
+## 9.1 `lifeplan list`
+
+List records of a given type.
+
+```bash
+lifeplan list <record-type>
+```
+
+### Examples
+
+```bash
+lifeplan list incomes
+lifeplan list expenses
+lifeplan list assets
+lifeplan list events
+lifeplan list assumptions
+```
+
+### Options
+
+| Option                  | Description                         |
+| ----------------------- | ----------------------------------- |
+| `--category <category>` | Filter by category                  |
+| `--from <year>`         | Filter records active from year     |
+| `--to <year>`           | Filter records active until year    |
+| `--scenario <id>`       | List records in a specific scenario |
+
+---
+
+## 9.2 `lifeplan get`
+
+Show a specific record.
+
+```bash
+lifeplan get <record-type> <id>
+```
+
+### Examples
+
+```bash
+lifeplan get income salary
+lifeplan get expense living
+lifeplan get asset securities
+```
+
+---
+
+# 10. Data Change Commands
+
+## 10.1 `lifeplan add`
+
+Add a new record.
+
+```bash
+lifeplan add <record-type> [fields]
+```
+
+### Supported Record Types
+
+```text
+profile
+income
+expense
+asset
+liability
+event
+assumption
+```
+
+### Common Options
+
+| Option                  | Description              |
+| ----------------------- | ------------------------ |
+| `--id <id>`             | Stable record ID         |
+| `--name <name>`         | Human-readable name      |
+| `--category <category>` | Category                 |
+| `--amount <amount>`     | Amount                   |
+| `--from <year>`         | Start year               |
+| `--to <year>`           | End year                 |
+| `--dry-run`             | Preview without applying |
+
+### Examples
+
+```bash
+lifeplan add income \
+  --id salary \
+  --name "Salary" \
+  --amount 9600000 \
+  --from 2026 \
+  --to 2045
+```
+
+```bash
+lifeplan add expense \
+  --id living \
+  --name "Living expenses" \
+  --amount 4200000 \
+  --from 2026 \
+  --to 2065 \
+  --category living
+```
+
+```bash
+lifeplan add asset \
+  --id cash \
+  --name "Cash" \
+  --amount 7800000 \
+  --as-of 2026-05-10
+```
+
+```bash
+lifeplan add event \
+  --id university-entry \
+  --name "University entrance cost" \
+  --year 2031 \
+  --amount 1500000 \
+  --category education
+```
+
+### Behavior
+
+Adds a record if the input is valid.
+
+If `--dry-run` is specified, returns a preview and does not change data.
+
+---
+
+## 10.2 `lifeplan set`
+
+Update fields on an existing record.
+
+```bash
+lifeplan set <record-type> <id> <field> <value>
+```
+
+### Examples
+
+```bash
+lifeplan set income salary amount 10000000
+lifeplan set expense living amount 4500000
+lifeplan set assumption inflation 0.02
+```
+
+### Options
+
+| Option      | Description              |
+| ----------- | ------------------------ |
+| `--dry-run` | Preview without applying |
+
+---
+
+## 10.3 `lifeplan remove`
+
+Remove a record.
+
+```bash
+lifeplan remove <record-type> <id>
+```
+
+### Examples
+
+```bash
+lifeplan remove expense old-rent
+lifeplan remove event unused-event
+```
+
+### Options
+
+| Option      | Description                                  |
+| ----------- | -------------------------------------------- |
+| `--dry-run` | Preview without removing                     |
+| `--force`   | Remove without confirmation where applicable |
+
+---
+
+# 11. Proposed Change Commands
+
+These commands are intended for LLM-agent workflows.
+
+## 11.1 `lifeplan propose`
+
+Create a change proposal without applying it.
+
+```bash
+lifeplan propose <action> <record-type> [fields]
+```
+
+### Actions
+
+```text
+add
+set
+remove
+```
+
+### Examples
+
+```bash
+lifeplan propose add expense \
+  --id university \
+  --name "University costs" \
+  --amount 1500000 \
+  --from 2031 \
+  --to 2034 \
+  --category education \
+  --format json
+```
+
+```bash
+lifeplan propose set assumption inflation 0.03 --format json
+```
+
+### Output
+
+Should include:
+
+```text
+Proposal ID
+Summary
+Action
+Affected record
+Before values, if applicable
+After values, if applicable
+Validation result
+Potential forecast impact, if available
+```
+
+---
+
+## 11.2 `lifeplan apply`
+
+Apply a proposed change.
+
+```bash
+lifeplan apply <proposal-id>
+```
+
+### Options
+
+| Option      | Description                  |
+| ----------- | ---------------------------- |
+| `--dry-run` | Preview application          |
+| `--force`   | Apply even if warnings exist |
+
+### Behavior
+
+Applies a proposal only if it is still valid.
+
+If the underlying data changed after the proposal was created, the command should report that the proposal may be stale.
+
+---
+
+## 11.3 `lifeplan proposals`
+
+List pending proposals.
+
+```bash
+lifeplan proposals
+```
+
+---
+
+## 11.4 `lifeplan discard`
+
+Discard a proposal.
+
+```bash
+lifeplan discard <proposal-id>
+```
+
+---
+
+# 12. Validation Commands
+
+## 12.1 `lifeplan validate`
+
+Validate the current project or scenario.
+
+```bash
+lifeplan validate
+```
+
+### Options
+
+| Option              | Description                  |
+| ------------------- | ---------------------------- |
+| `--scenario <id>`   | Validate a specific scenario |
+| `--strict`          | Treat warnings as failures   |
+| `--format <format>` | `text` or `json`             |
+
+### Behavior
+
+Checks whether the project data is internally consistent.
+
+### Validation Categories
+
+```text
+Required fields
+Invalid amounts
+Invalid year ranges
+Duplicate IDs
+Missing referenced records
+Events outside projection period
+Scenario overrides pointing to missing records
+Forecast-blocking errors
+Potentially suspicious assumptions
+```
+
+### JSON Output Shape
+
+```json
+{
+  "valid": false,
+  "errors": [
+    {
+      "severity": "error",
+      "code": "MISSING_REQUIRED_FIELD",
+      "message": "Income amount is required.",
+      "record_type": "income",
+      "record_id": "salary",
+      "path": "amount"
+    }
+  ],
+  "warnings": []
+}
+```
+
+---
+
+# 13. Forecast Commands
+
+## 13.1 `lifeplan forecast`
+
+Generate an annual life planning projection.
+
+```bash
+lifeplan forecast
+```
+
+### Options
+
+| Option              | Description                       |
+| ------------------- | --------------------------------- |
+| `--from <year>`     | Start year                        |
+| `--to <year>`       | End year                          |
+| `--scenario <id>`   | Scenario to forecast              |
+| `--format <format>` | `text`, `json`, `csv`, `markdown` |
+| `--include-details` | Include item-level breakdown      |
+| `--by-person`       | Include per-`person_id` aggregation in output (adds a per-person table per year; CSV switches to long format) |
+
+### Output Columns
+
+At minimum, forecast output should include:
+
+```text
+year
+income
+expense
+event
+net_cashflow
+asset_balance
+liability_balance
+net_worth
+```
+
+If profile age data exists, output may also include:
+
+```text
+age
+spouse_age
+child_age
+```
+
+### Example
+
+```bash
+lifeplan forecast --scenario base --from 2026 --to 2065 --format csv
+```
+
+---
+
+## 13.2 `lifeplan explain`
+
+Explain a forecast result.
+
+```bash
+lifeplan explain <target>
+```
+
+### Targets
+
+```text
+year
+metric
+scenario-diff
+record
+```
+
+### Options
+
+| Option              | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `--scenario <id>`   | Scenario to explain against (default: `base`)                     |
+| `--year <year>`     | Year used by `metric` / `scenario-diff`                           |
+| `--from <year>`     | Forecast start year                                               |
+| `--to <year>`       | Forecast end year                                                 |
+| `--metric <name>`   | Alternative to positional metric argument                         |
+| `--record <path>`   | Alternative to positional record argument                         |
+
+### Examples
+
+```bash
+lifeplan explain year 2031
+lifeplan explain metric depletion_year
+lifeplan explain metric total_income --year 2045
+lifeplan explain scenario-diff base conservative --year 2050
+lifeplan explain record income.salary
+```
+
+### Output
+
+Every explanation returns an `Explanation` object (see
+`docs/datamodel.md` § 26) with these fields:
+
+| Field          | Description                                                              |
+| -------------- | ------------------------------------------------------------------------ |
+| `target_type`  | `year` / `metric` / `scenario_diff` / `record`                           |
+| `target`       | Year, metric name, scenario pair (`a..b`), or `<type>.<id>` path         |
+| `summary`      | One-line human-readable explanation                                      |
+| `contributors` | Records contributing to the value (with `record_type`, `record_id`, `amount`); for `scenario_diff`, override paths with `from` and `to` values |
+| `assumptions`  | Assumption IDs referenced by the contributing records                    |
+| `warnings`     | Validation issues (level=warning) that are relevant to the explanation   |
+| `value`        | Numeric value of the explained metric / record total (when applicable)   |
+| `cumulative`   | Cumulative `income` / `expense` / `withdrawals` totals (metric mode)     |
+| `deltas`       | Per-metric delta map (`scenario_diff` mode)                              |
+| `per_year`     | Per-year amount breakdown (`record` mode)                                |
+
+The `record` target accepts a `<type>.<id>` path
+(`income.salary`, `expense.living`, `asset.cash`, `liability.mortgage`,
+`event.bonus`) and returns the year-by-year contribution plus a total
+over the forecast horizon.
+
+---
+
+# 14. Scenario Commands
+
+## 14.1 `lifeplan scenario list`
+
+List scenarios.
+
+```bash
+lifeplan scenario list
+```
+
+---
+
+## 14.2 `lifeplan scenario create`
+
+Create a new scenario.
+
+```bash
+lifeplan scenario create <id>
+```
+
+### Options
+
+| Option                 | Description                      |
+| ---------------------- | -------------------------------- |
+| `--name <name>`        | Human-readable name              |
+| `--base <scenario-id>` | Create from an existing scenario |
+
+### Example
+
+```bash
+lifeplan scenario create conservative --base base --name "Conservative Case"
+```
+
+---
+
+## 14.3 `lifeplan scenario set`
+
+Set an override in a scenario.
+
+```bash
+lifeplan scenario set <scenario-id> <path> <value>
+```
+
+### Examples
+
+```bash
+lifeplan scenario set conservative assumptions.investment_return 0.01
+lifeplan scenario set conservative assumptions.inflation 0.03
+lifeplan scenario set early-retirement incomes.salary.to 2040
+```
+
+### Options
+
+| Option      | Description              |
+| ----------- | ------------------------ |
+| `--dry-run` | Preview without applying |
+
+---
+
+## 14.4 `lifeplan scenario apply`
+
+Create a derived scenario by stacking overrides on top of an existing scenario.
+
+```bash
+lifeplan scenario apply <scenario-id> --to <new-id> [--override PATH=VALUE ...]
+```
+
+The new scenario is saved with `base = <scenario-id>` and the supplied overrides
+applied as `set` operations. Override paths are validated against the resolved
+project before saving; invalid paths abort the command without modifying state.
+
+### Options
+
+| Option                  | Description                              |
+| ----------------------- | ---------------------------------------- |
+| `--to <id>`             | ID of the new scenario (required)        |
+| `--name <name>`         | Human-readable name                      |
+| `--override PATH=VALUE` | Override (`set` op); repeat for multiple |
+| `--dry-run`             | Validate but do not persist              |
+
+### Example
+
+```bash
+lifeplan scenario apply base --to early-retirement \
+    --override "income.salary.to=2032" \
+    --override "expense.living-retirement.amount=4000000"
+```
+
+### Path Syntax
+
+`<record-type>.<record-id>.<field>` — supported types are `assumption`,
+`income`, `expense`, `asset`, `liability`, `event`. For `assumption`, the
+`.value` field is added automatically when omitted (`assumption.inflation` →
+`assumption.inflation.value`). See `docs/datamodel.md` § 31 for the full path
+syntax and § 19 for `op` semantics (`set` / `add` / `remove`).
+
+---
+
+## 14.5 `lifeplan scenario remove`
+
+Remove a scenario.
+
+```bash
+lifeplan scenario remove <scenario-id>
+```
+
+---
+
+## 14.6 `lifeplan compare`
+
+Compare one or more scenarios side by side. Each scenario contributes one row of
+key summary metrics.
+
+```bash
+lifeplan compare <scenario-id> [<scenario-id> ...]
+```
+
+### Options
+
+| Option                | Description                                                |
+| --------------------- | ---------------------------------------------------------- |
+| `--from <year>`       | Forecast start year                                        |
+| `--to <year>`         | Forecast end year                                          |
+| `--at <year>`         | Year used for `net_worth@` and `liquid@` (defaults to end) |
+| `--metrics <list>`    | Comma-separated subset of metrics to emit                  |
+| `--format <format>`   | `text`/`table`, `json`, `csv`, `markdown`/`md`             |
+
+### Metrics
+
+| Metric                | Description                                                |
+| --------------------- | ---------------------------------------------------------- |
+| `net_worth`           | Net worth at `--at` (default: end year)                    |
+| `liquid`              | Cash + liquid investments at `--at`                        |
+| `depletion_year`      | First year liquid balance goes negative, or `—`            |
+| `min_liquid_year`     | Year of minimum liquid balance                             |
+| `final_asset_balance` | Asset balance at end of forecast                           |
+| `total_income`        | Sum of income across the forecast period                   |
+| `total_expense`       | Sum of expense across the forecast period                  |
+
+`liquid` is computed as the sum of asset balances where `category == "cash"` or
+the asset's `liquid` flag is true.
+
+### Example
+
+```text
+scenario       net_worth@2066  liquid@2066  depletion_year  min_liquid_year
+base                   -2,395       -4,860            2061             2066
+side-fire-55          -13,809      -16,274            2047             2066
+conservative          -18,849      -21,314            2049             2066
+```
+
+---
+
+## 14.7 `lifeplan sensitivity`
+
+Run a 2D parameter sweep against a chosen forecast metric. For each (x, y) pair
+the base scenario is cloned, both overrides are applied, a forecast is run, and
+the chosen metric is extracted into a 2D grid.
+
+```bash
+lifeplan sensitivity \
+    --x-axis <path> --x-values v1,v2,... \
+    --y-axis <path> --y-values v1,v2,... \
+    --metric <metric>
+```
+
+### Options
+
+| Option                  | Description                                                       |
+| ----------------------- | ----------------------------------------------------------------- |
+| `--base-scenario <id>`  | Scenario to clone before applying overrides (default: `base`)     |
+| `--x-axis <path>`       | Override path for rows (e.g. `expense.living-retirement.amount`)  |
+| `--x-values <list>`     | Comma-separated values for the x-axis                             |
+| `--y-axis <path>`       | Override path for columns (e.g. `event.so-cashout.amount`)        |
+| `--y-values <list>`     | Comma-separated values for the y-axis                             |
+| `--metric <name>`       | Metric to extract (see below)                                     |
+| `--from <year>`         | Forecast start year                                               |
+| `--to <year>`           | Forecast end year                                                 |
+| `--format <format>`     | `text`/`table`, `json`, `csv`, `markdown`/`md`                    |
+
+### Metric Syntax
+
+Year-specific metrics use the `<metric>_at_<year>` form. Supported bases:
+`net_worth`, `asset_balance`, `liquid_balance` (alias `liquid`).
+
+Summary metrics (no year suffix): `final_asset_balance`, `minimum_asset_balance`,
+`minimum_asset_balance_year`, `first_negative_asset_year`, `asset_at_retirement`,
+`retirement_year`, `total_income`, `total_expense`, `depletion_year` (the first
+year `liquid_balance` goes negative, or `—`).
+
+### Annotation
+
+Cells where `liquid_balance` ever goes negative during the forecast are suffixed
+with `*` in text / markdown / csv output, and carry `"liquid_depleted": true` in
+JSON output.
+
+### Example
+
+```bash
+lifeplan sensitivity \
+    --base-scenario side-fire-55 \
+    --x-axis "expense.living-retirement.amount" \
+    --x-values 3160000,3520000,4000000,4360000,4900000 \
+    --y-axis "event.so-cashout.amount" \
+    --y-values 0,10000000,20000000,30000000,50000000 \
+    --metric net_worth_at_2066 \
+    --format table
+```
+
+---
+
+# 15. Calculation Commands
+
+Calculation commands are stateless utilities. They do not require project data unless explicitly connected to a scenario.
+
+## 15.1 `lifeplan calc future-value`
+
+Calculate future value.
+
+```bash
+lifeplan calc future-value --principal <amount> --rate <rate> --years <years>
+```
+
+### Alias
+
+```bash
+lifeplan calc fv
+```
+
+### Example
+
+```bash
+lifeplan calc fv --principal 10000000 --rate 0.03 --years 20
+```
+
+---
+
+## 15.2 `lifeplan calc present-value`
+
+Calculate present value.
+
+```bash
+lifeplan calc present-value --future <amount> --rate <rate> --years <years>
+```
+
+### Alias
+
+```bash
+lifeplan calc pv
+```
+
+---
+
+## 15.3 `lifeplan calc savings`
+
+Calculate recurring savings projection.
+
+```bash
+lifeplan calc savings \
+  --payment <amount> \
+  --rate <rate> \
+  --years <years>
+```
+
+### Options
+
+| Option                    | Description           |
+| ------------------------- | --------------------- |
+| `--initial <amount>`      | Initial amount        |
+| `--frequency <frequency>` | `monthly` or `yearly` |
+
+---
+
+## 15.4 `lifeplan calc required-savings`
+
+Calculate required savings amount for a target.
+
+```bash
+lifeplan calc required-savings \
+  --target <amount> \
+  --rate <rate> \
+  --years <years>
+```
+
+### Options
+
+| Option                    | Description           |
+| ------------------------- | --------------------- |
+| `--initial <amount>`      | Initial amount        |
+| `--frequency <frequency>` | `monthly` or `yearly` |
+
+---
+
+## 15.5 `lifeplan calc withdrawal`
+
+Estimate withdrawal amount.
+
+```bash
+lifeplan calc withdrawal \
+  --principal <amount> \
+  --rate <rate> \
+  --years <years>
+```
+
+### Options
+
+| Option                    | Description           |
+| ------------------------- | --------------------- |
+| `--frequency <frequency>` | `monthly` or `yearly` |
+
+---
+
+## 15.6 `lifeplan calc loan`
+
+Calculate loan repayment.
+
+```bash
+lifeplan calc loan \
+  --principal <amount> \
+  --rate <rate> \
+  --years <years>
+```
+
+### Options
+
+| Option                     | Description                       |
+| -------------------------- | --------------------------------- |
+| `--frequency <frequency>`  | `monthly` or `yearly`             |
+| `--bonus-payment <amount>` | Bonus repayment amount            |
+| `--format <format>`        | `text`, `json`, `csv`, `markdown` |
+
+---
+
+## 15.7 `lifeplan calc mortgage`
+
+Amortize a mortgage month-by-month, with optional rate changes.
+
+```bash
+lifeplan calc mortgage \
+  --principal <amount> \
+  --rate <rate> \
+  --payment <amount>
+```
+
+### Options
+
+| Option                    | Description                                                                |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `--frequency <frequency>` | `monthly` (default) or `yearly`                                            |
+| `--from <YYYY-MM>`        | First payment year/month (also accepts a year)                             |
+| `--to <YYYY-MM>`          | Cap the schedule at this year/month                                        |
+| `--rate-changes <list>`   | Comma-separated `YYYY:rate` entries applied at the start of the named year |
+| `--format <format>`       | `text`, `json`, `csv`, `markdown`                                          |
+
+### Output
+
+- `principal`, `total_interest`, `total_principal`, `total_payment`
+- `final_year`, `final_period`, `periods`
+- `yearly` table with `year`, `interest`, `principal`, `payment`, `rate`
+
+### Example
+
+```bash
+lifeplan calc mortgage \
+  --principal 7487975 \
+  --rate 0.0059 \
+  --payment 76754 \
+  --from 2026-05 \
+  --rate-changes "2027:0.01,2032:0.015" \
+  --format csv
+```
+
+---
+
+## 15.8 `lifeplan calc inflation`
+
+
+Calculate inflation-adjusted value.
+
+```bash
+lifeplan calc inflation \
+  --amount <amount> \
+  --rate <rate> \
+  --years <years>
+```
+
+---
+
+## 15.9 `lifeplan calc grow`
+
+Generate a growth table.
+
+```bash
+lifeplan calc grow \
+  --amount <amount> \
+  --rate <rate> \
+  --years <years>
+```
+
+### Options
+
+| Option              | Description                       |
+| ------------------- | --------------------------------- |
+| `--format <format>` | `text`, `json`, `csv`, `markdown` |
+
+---
+
+# 16. Report and Export Commands
+
+## 16.1 `lifeplan export`
+
+Export structured data or calculated results.
+
+```bash
+lifeplan export <target>
+```
+
+### Targets
+
+```text
+data
+forecast
+scenario
+comparison
+validation
+report
+```
+
+### Options
+
+| Option                  | Description                                                            |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `--scenario <id>`       | Scenario to operate on (where applicable)                              |
+| `--from <year>`         | Forecast start year                                                    |
+| `--to <year>`           | Forecast end year                                                      |
+| `--format <format>`     | `text`/`table`, `json`, `csv`, `markdown`/`md`                         |
+| `--output <file>`       | Write to FILE instead of stdout (overwrites if it exists)              |
+| `--include-validation`  | Include validation section (`report` target)                           |
+| `--include-assumptions` | Include assumptions section (`report` target; default on)              |
+| `--include-scenarios`   | Include scenario comparison section (`report` target)                  |
+
+### Forecast CSV columns
+
+`export forecast --format csv` emits a wide row per year with one column per
+input record so the data is directly usable in a spreadsheet:
+
+```text
+year, age_<person>..., income_total, income_<id>..., expense_total,
+expense_<id>..., event_income, event_expense, net_cashflow,
+asset_<id>..., liability_<id>_balance..., asset_balance,
+liability_balance, liquid_balance, net_worth
+```
+
+Per-record values are recomputed from the input records for the forecast year;
+per-asset and per-liability balances come from the engine's `include_details`
+output.
+
+### Examples
+
+```bash
+lifeplan export forecast --scenario base --format csv --output forecast.csv
+lifeplan export data --format json
+lifeplan export comparison --scenario conservative --format markdown
+lifeplan export report --scenario side-fire-55 --format markdown --output report.md
+```
+
+Templates for the `report` target are deferred — track in the related
+issue.
+
+---
+
+## 16.2 `lifeplan report`
+
+Generate a human-readable report.
+
+```bash
+lifeplan report
+```
+
+### Options
+
+| Option                  | Description                 |
+| ----------------------- | --------------------------- |
+| `--scenario <id>`       | Scenario to report          |
+| `--from <year>`         | Start year                  |
+| `--to <year>`           | End year                    |
+| `--format <format>`     | `markdown` or `text`        |
+| `--include-validation`  | Include validation summary  |
+| `--include-assumptions` | Include assumptions         |
+| `--include-scenarios`   | Include scenario comparison |
+
+### Example
+
+```bash
+lifeplan report --scenario base --format markdown
+```
+
+---
+
+# 16a. Workspace Maintenance
+
+## 16a.1 `lifeplan upgrade`
+
+Migrate an existing workspace to the current CLI version. Reads the
+workspace's `lifeplan_version` from `project.json`, compares it against the
+installed CLI, and applies registered migrations between the two.
+
+```bash
+lifeplan upgrade [--apply] [--from <version>] [--to <version>]
+```
+
+Dry-run is the default — no files are written. Use `--apply --no-dry-run` to
+persist the changes (the `--apply` flag overrides the default `--dry-run`).
+
+### Options
+
+| Option              | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `--dry-run`         | Preview without writing (default: true)                           |
+| `--apply`           | Apply the migrations and update the version marker                |
+| `--from <version>`  | Override the workspace's current version (advanced)               |
+| `--to <version>`    | Target version (default: installed CLI version)                   |
+| `--format <format>` | `text`/`table`, `json`, `csv`, `markdown`/`md`                    |
+
+### Output
+
+Each migration emits a list of `MigrationStep` records:
+
+| Field           | Description                                                  |
+| --------------- | ------------------------------------------------------------ |
+| `version_from`  | Version this step migrates from                              |
+| `version_to`    | Version this step migrates to                                |
+| `path`          | Affected field path (e.g. `lifeplan_version`)                |
+| `operation`     | `add` / `rename` / `remove` / `update`                       |
+| `before`        | Previous value (nil when adding)                             |
+| `after`         | New value (nil when removing)                                |
+| `severity`      | `info` / `warning` / `error`                                 |
+| `note`          | Free-text follow-up suggestion                               |
+
+The payload also carries `from`, `to`, `up_to_date`, `applied`, and `dry_run`
+fields so an agent can branch on the result.
+
+### Pre-versioning workspaces
+
+Workspaces created before the version field existed have no
+`lifeplan_version`. The upgrade command treats this as the `nil` source and
+stamps the workspace with the installed CLI version when `--apply` is set.
+
+### Example
+
+```bash
+lifeplan upgrade --format json
+lifeplan upgrade --apply --no-dry-run
+```
+
+---
+
+# 17. Check Commands
+
+## 17.1 `lifeplan check`
+
+Run higher-level planning checks.
+
+```bash
+lifeplan check
+```
+
+### Difference from `validate`
+
+`validate` checks whether the data is structurally valid.
+
+`check` looks for planning risks or suspicious patterns.
+
+### Example Checks
+
+```text
+Assets become negative
+Retirement income is missing
+Expenses stop unexpectedly
+Education costs overlap incorrectly
+Loan continues beyond projection period
+Inflation-sensitive expenses are not linked to inflation
+Large one-time events are missing categories
+Scenario assumptions differ but forecast is unchanged
+```
+
+### Options
+
+| Option              | Description       |
+| ------------------- | ----------------- |
+| `--scenario <id>`   | Scenario to check |
+| `--format <format>` | `text` or `json`  |
+
+---
+
+# 18. History and Diff Commands
+
+## 18.1 `lifeplan diff`
+
+Show differences between current data and another state, scenario, or proposal.
+
+```bash
+lifeplan diff
+```
+
+### Examples
+
+```bash
+lifeplan diff --scenario base conservative
+lifeplan diff --proposal proposal_001
+```
+
+---
+
+## 18.2 `lifeplan history`
+
+Show change history if available.
+
+```bash
+lifeplan history
+```
+
+### Output
+
+Should include:
+
+```text
+Change ID
+Timestamp
+Summary
+Affected records
+```
+
+---
+
+# 19. Template Commands
+
+## 19.1 `lifeplan template list`
+
+List available templates.
+
+```bash
+lifeplan template list
+```
+
+---
+
+## 19.2 `lifeplan template show`
+
+Show a template.
+
+```bash
+lifeplan template show <template-id>
+```
+
+---
+
+## 19.3 `lifeplan template apply`
+
+Apply a template to the current project.
+
+```bash
+lifeplan template apply <template-id>
+```
+
+### Options
+
+| Option            | Description                  |
+| ----------------- | ---------------------------- |
+| `--dry-run`       | Preview changes              |
+| `--scenario <id>` | Apply to a specific scenario |
+
+### Example Templates
+
+```text
+single
+couple
+family-with-child
+retirement-planning
+mortgage-and-education
+```
+
+---
+
+# 20. Record Type Definitions
+
+## 20.1 Profile
+
+Represents people and basic planning period information.
+
+Common fields:
+
+```text
+id
+name
+birth_year
+relationship
+planning_start_year
+planning_end_year
+currency
+```
+
+---
+
+## 20.2 Income
+
+Represents recurring or one-time income.
+
+Common fields:
+
+```text
+id
+name
+amount
+frequency
+from
+to
+growth
+category
+```
+
+---
+
+## 20.3 Expense
+
+Represents recurring or one-time expense.
+
+Common fields:
+
+```text
+id
+name
+amount
+frequency
+from
+to
+growth
+category
+```
+
+---
+
+## 20.4 Asset
+
+Represents current or projected asset.
+
+Common fields:
+
+```text
+id
+name
+amount
+as_of
+return
+category
+```
+
+---
+
+## 20.5 Liability
+
+Represents debt or future repayment obligation.
+
+Common fields:
+
+```text
+id
+name
+principal
+rate
+from
+to
+years
+payment
+category
+```
+
+---
+
+## 20.6 Event
+
+Represents a major life event.
+
+Common fields:
+
+```text
+id
+name
+year
+amount
+category
+description
+```
+
+---
+
+## 20.7 Assumption
+
+Represents a planning assumption.
+
+Common fields:
+
+```text
+id
+name
+value
+unit
+description
+```
+
+Examples:
+
+```text
+inflation
+investment_return
+cash_return
+salary_growth
+retirement_age
+```
+
+---
+
+## 20.8 Scenario
+
+Represents a set of overrides against base data.
+
+Common fields:
+
+```text
+id
+name
+base
+overrides
+description
+```
+
+---
+
+# 21. Minimum Required Command Set for MVP
+
+The MVP should include at least the following commands.
+
+```bash
+lifeplan init
+lifeplan status
+lifeplan schema
+lifeplan list
+lifeplan get
+lifeplan add
+lifeplan set
+lifeplan remove
+lifeplan validate
+lifeplan check
+lifeplan forecast
+lifeplan explain
+lifeplan scenario list
+lifeplan scenario create
+lifeplan scenario set
+lifeplan compare
+lifeplan calc fv
+lifeplan calc pv
+lifeplan calc savings
+lifeplan calc required-savings
+lifeplan calc withdrawal
+lifeplan calc loan
+lifeplan calc inflation
+lifeplan calc grow
+lifeplan export
+lifeplan report
+```
+
+Agent-oriented MVP should additionally include:
+
+```bash
+lifeplan propose
+lifeplan apply
+lifeplan proposals
+lifeplan discard
+lifeplan diff
+```
+
+---
+
+# 22. Example Agent Workflow
+
+An LLM agent should be able to use the CLI in the following sequence.
+
+```bash
+lifeplan status --format json
+lifeplan schema income --format json
+lifeplan list incomes --format json
+lifeplan propose add income --id salary --name "Salary" --amount 9600000 --from 2026 --to 2045 --format json
+lifeplan validate --format json
+lifeplan apply proposal_001
+lifeplan forecast --scenario base --format json
+lifeplan explain year 2031 --format json
+lifeplan report --scenario base --format markdown
+```
+
+This workflow allows the agent to inspect, propose, validate, apply, forecast, explain, and report without directly editing project data.
+
+---
+
+# 23. Example Human Workflow
+
+A human user should be able to use the CLI directly.
+
+```bash
+lifeplan init ./plan --name "My Life Plan" --start-year 2026 --end-year 2065
+lifeplan add income --id salary --name "Salary" --amount 9600000 --from 2026 --to 2045
+lifeplan add expense --id living --name "Living Expenses" --amount 4200000 --from 2026 --to 2065
+lifeplan add asset --id cash --name "Cash" --amount 7800000 --as-of 2026-05-10
+lifeplan validate
+lifeplan forecast --format csv
+lifeplan report --format markdown
+```
+
+---
+
+# 24. Interface Boundary
+
+Lifeplan CLI defines interfaces for:
+
+```text
+Project creation
+Data inspection
+Data changes
+Change proposal and application
+Validation
+Forecasting
+Explanation
+Scenario management
+Scenario comparison
+Standard calculations
+Export
+Report generation
+Templates
+Diff and history
+```
+
+Lifeplan CLI does not define interfaces for:
+
+```text
+Investment recommendations
+Financial product selection
+Tax filing
+Legal advice
+Insurance diagnosis
+Bank account synchronization
+Brokerage synchronization
+Daily household accounting
+Receipt import
+Cloud account management
+Multi-user permissions
+```
+
+The CLI should remain focused on structured life planning work, deterministic calculations, validation, explanation, and export.
