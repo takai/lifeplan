@@ -22,6 +22,7 @@ module Lifeplan
       :currency,
       :start_year,
       :end_year,
+      :household_aggregation,
       :profile,
       :incomes,
       :expenses,
@@ -41,6 +42,7 @@ module Lifeplan
       @currency = currency
       @start_year = start_year
       @end_year = end_year
+      @household_aggregation = nil
       @profile = nil
       @incomes = []
       @expenses = []
@@ -64,6 +66,7 @@ module Lifeplan
           start_year: data["start_year"],
           end_year: data["end_year"],
         )
+        project.household_aggregation = data["household_aggregation"]
         project.profile = build_profile(data["profile"]) if data["profile"]
         COLLECTIONS.each do |key, type|
           klass = Records.class_for(type)
@@ -93,6 +96,7 @@ module Lifeplan
         "start_year" => start_year,
         "end_year" => end_year,
       }
+      result["household_aggregation"] = household_aggregation if household_aggregation
       result["profile"] = serialize_profile if profile
       COLLECTIONS.each_key do |key|
         items = public_send(key)
