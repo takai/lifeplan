@@ -75,25 +75,8 @@ module Lifeplan
         base.to_s.downcase.strip.gsub(/[^a-z0-9]+/, "-").gsub(/(^-|-$)/, "")
       end
 
-      SCAFFOLD_DOCS = ["prd.md", "cli.md", "datamodel.md"].freeze
-
       def write_init_scaffold(path)
-        copy_scaffold_docs(path)
         copy_scaffold_templates(path)
-      end
-
-      def copy_scaffold_docs(path)
-        src_dir = File.join(Lifeplan::ROOT, "docs")
-        dest_dir = File.join(path, "docs")
-        FileUtils.mkdir_p(dest_dir)
-        SCAFFOLD_DOCS.each do |name|
-          src = File.join(src_dir, name)
-          dest = File.join(dest_dir, name)
-          next unless File.file?(src)
-          next if File.exist?(dest)
-
-          FileUtils.cp(src, dest)
-        end
       end
 
       def copy_scaffold_templates(path)
