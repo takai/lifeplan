@@ -13,6 +13,7 @@ require "lifeplan/commands/forecast_commands"
 require "lifeplan/commands/scenario_commands"
 require "lifeplan/commands/compare_commands"
 require "lifeplan/commands/sensitivity_commands"
+require "lifeplan/commands/upgrade_commands"
 require "lifeplan/commands/proposal_commands"
 require "lifeplan/commands/calc_commands"
 require "lifeplan/commands/export_commands"
@@ -28,6 +29,7 @@ module Lifeplan
     include Commands::ForecastCommands
     include Commands::CompareCommands
     include Commands::SensitivityCommands
+    include Commands::UpgradeCommands
     include Commands::ProposalCommands
     include Commands::ExportCommands
     include Commands::ReportCommands
@@ -237,6 +239,15 @@ module Lifeplan
     method_option :force, type: :boolean, default: false
     def remove(type, id)
       render(remove_payload(type, id, options))
+    end
+
+    desc "upgrade", "Migrate a workspace to the current CLI version"
+    method_option :"dry-run", type: :boolean, default: true
+    method_option :apply, type: :boolean, default: false
+    method_option :from, type: :string
+    method_option :to, type: :string
+    def upgrade
+      render(upgrade_payload(options))
     end
   end
 end

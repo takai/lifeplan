@@ -229,6 +229,7 @@ Represents one life planning workspace.
 | `scenarios`   | array of Scenario   |       No | Scenario definitions            |
 | `proposals`   | array of Proposal   |       No | Pending change proposals        |
 | `household_aggregation` | string    |       No | Per-person cashflow aggregation policy (see below) |
+| `lifeplan_version` | string        |       No | CLI version this workspace was last touched with (see `lifeplan upgrade`) |
 
 ### Household aggregation modes
 
@@ -1176,6 +1177,27 @@ Represents a data record that contributed to an explanation.
 | `name`        | string  | Record name                 |
 | `amount`      | integer | Contribution amount         |
 | `description` | string  | Explanation of contribution |
+
+## 27a. MigrationStep
+
+Represents one structural change produced by `lifeplan upgrade` while moving a
+workspace between CLI versions. Mirrors the `ValidationIssue` shape so agents
+can consume both the same way.
+
+### Fields
+
+| Field          | Type    | Description                                                |
+| -------------- | ------- | ---------------------------------------------------------- |
+| `version_from` | string  | Source CLI version (nil = pre-versioning workspace)        |
+| `version_to`   | string  | Target CLI version this step lands on                      |
+| `path`         | string  | Affected field path (e.g. `lifeplan_version`)              |
+| `operation`    | string  | `add` / `rename` / `remove` / `update`                     |
+| `before`       | any     | Previous value (nil for `add`)                             |
+| `after`        | any     | New value (nil for `remove`)                               |
+| `severity`     | string  | `info` / `warning` / `error`                               |
+| `note`         | string  | Free-text follow-up or rationale                           |
+
+See `docs/cli.md` § 16a.1 for the `lifeplan upgrade` command.
 
 ## 28. Report
 
