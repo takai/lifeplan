@@ -604,27 +604,52 @@ lifeplan explain <target>
 year
 metric
 scenario-diff
+record
 ```
+
+### Options
+
+| Option              | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `--scenario <id>`   | Scenario to explain against (default: `base`)                     |
+| `--year <year>`     | Year used by `metric` / `scenario-diff`                           |
+| `--from <year>`     | Forecast start year                                               |
+| `--to <year>`       | Forecast end year                                                 |
+| `--metric <name>`   | Alternative to positional metric argument                         |
+| `--record <path>`   | Alternative to positional record argument                         |
 
 ### Examples
 
 ```bash
 lifeplan explain year 2031
-lifeplan explain metric asset_balance --year 2045
-lifeplan explain scenario-diff base conservative --metric asset_balance
+lifeplan explain metric depletion_year
+lifeplan explain metric total_income --year 2045
+lifeplan explain scenario-diff base conservative --year 2050
+lifeplan explain record income.salary
 ```
 
 ### Output
 
-Should include:
+Every explanation returns an `Explanation` object (see
+`docs/datamodel.md` § 26) with these fields:
 
-```text
-Requested year or metric
-Input records contributing to the result
-Assumptions used
-Calculated result
-Warnings or limitations
-```
+| Field          | Description                                                              |
+| -------------- | ------------------------------------------------------------------------ |
+| `target_type`  | `year` / `metric` / `scenario_diff` / `record`                           |
+| `target`       | Year, metric name, scenario pair (`a..b`), or `<type>.<id>` path         |
+| `summary`      | One-line human-readable explanation                                      |
+| `contributors` | Records contributing to the value (with `record_type`, `record_id`, `amount`); for `scenario_diff`, override paths with `from` and `to` values |
+| `assumptions`  | Assumption IDs referenced by the contributing records                    |
+| `warnings`     | Validation issues (level=warning) that are relevant to the explanation   |
+| `value`        | Numeric value of the explained metric / record total (when applicable)   |
+| `cumulative`   | Cumulative `income` / `expense` / `withdrawals` totals (metric mode)     |
+| `deltas`       | Per-metric delta map (`scenario_diff` mode)                              |
+| `per_year`     | Per-year amount breakdown (`record` mode)                                |
+
+The `record` target accepts a `<type>.<id>` path
+(`income.salary`, `expense.living`, `asset.cash`, `liability.mortgage`,
+`event.bonus`) and returns the year-by-year contribution plus a total
+over the forecast horizon.
 
 ---
 

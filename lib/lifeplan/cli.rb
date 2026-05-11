@@ -137,10 +137,13 @@ module Lifeplan
       render(forecast_payload(options))
     end
 
-    desc "explain TARGET [ARGS...]", "Explain a forecast result (year|metric|scenario-diff)"
+    desc "explain TARGET [ARGS...]", "Explain a forecast result (year|metric|scenario-diff|record)"
     method_option :scenario, type: :string
     method_option :year, type: :numeric
     method_option :metric, type: :string
+    method_option :record, type: :string
+    method_option :from, type: :numeric
+    method_option :to, type: :numeric
     def explain(target, *args)
       render(explain_payload(target, args, options))
     end
