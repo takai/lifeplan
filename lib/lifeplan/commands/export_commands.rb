@@ -5,6 +5,8 @@ require "lifeplan/commands/helpers"
 require "lifeplan/commands/forecast_commands"
 require "lifeplan/commands/compare_commands"
 require "lifeplan/commands/validation_commands"
+require "lifeplan/commands/report_commands"
+require "lifeplan/forecast/year_builder"
 require "lifeplan/scenarios/resolver"
 
 module Lifeplan
@@ -14,8 +16,9 @@ module Lifeplan
       include ForecastCommands
       include CompareCommands
       include ValidationCommands
+      include ReportCommands
 
-      VALID_TARGETS = ["data", "forecast", "scenario", "comparison", "validation"].freeze
+      VALID_TARGETS = ["data", "forecast", "scenario", "comparison", "validation", "report"].freeze
 
       def export_payload(target, args, opts)
         unless VALID_TARGETS.include?(target.to_s)
@@ -36,7 +39,33 @@ module Lifeplan
       end
 
       def export_forecast_payload(_args, opts)
-        forecast_payload(opts)
+        project = scenario_project(load_project, opts[:scenario])
+        forecast = Lifeplan::Forecast::Engine.new(
+          project,
+          scenario_id: opts[:scenario] || "base",
+          from: opts[:from]&.to_i,
+          to: opts[:to]&.to_i,
+          include_details: true,
+        ).call
+
+        rows = forecast.years.map(&:to_h)
+        data = {
+          "scenario_id" => forecast.scenario_id,
+          "from" => forecast.from,
+          "to" => forecast.to,
+          "years" => rows,
+          "summary" => forecast.summary.to_h,
+        }
+        payload(
+          data: data,
+          text: forecast_text(forecast),
+          markdown: forecast_markdown(forecast),
+          csv: forecast_wide_csv(project, forecast),
+        )
+      end
+
+      def export_report_payload(_args, opts)
+        report_payload(opts)
       end
 
       def export_scenario_payload(args, _opts)
@@ -70,6 +99,64 @@ module Lifeplan
 
       def export_validation_payload(_args, opts)
         validate_payload(opts)
+      end
+
+      WideForecastSchema = Struct.new(:people, :incomes, :expenses, :assets, :liabilities)
+
+      def forecast_wide_csv(project, forecast)
+        schema = WideForecastSchema.new(
+          (project.profile&.people || []).map(&:id),
+          project.incomes.map(&:id),
+          project.expenses.map(&:id),
+          project.assets.map(&:id),
+          project.liabilities.map(&:id),
+        )
+
+        CSV.generate do |csv|
+          csv << forecast_wide_headers(schema)
+          forecast.years.each do |row|
+            csv << forecast_wide_row(project, schema, row)
+          end
+        end
+      end
+
+      def forecast_wide_headers(schema)
+        headers = ["year"]
+        headers.concat(schema.people.map { |id| "age_#{id}" })
+        headers << "income_total"
+        headers.concat(schema.incomes.map { |id| "income_#{id}" })
+        headers << "expense_total"
+        headers.concat(schema.expenses.map { |id| "expense_#{id}" })
+        headers.push("event_income", "event_expense", "net_cashflow")
+        headers.concat(schema.assets.map { |id| "asset_#{id}" })
+        headers.concat(schema.liabilities.map { |id| "liability_#{id}_balance" })
+        headers.push("asset_balance", "liability_balance", "liquid_balance", "net_worth")
+        headers
+      end
+
+      def forecast_wide_row(project, schema, row)
+        year = row.year
+        assumptions = project.assumptions
+        per_income = project.incomes.to_h do |r|
+          [r.id, Lifeplan::Forecast::YearBuilder.income_for(r, year, assumptions)]
+        end
+        per_expense = project.expenses.to_h do |r|
+          [r.id, Lifeplan::Forecast::YearBuilder.expense_for(r, year, assumptions)]
+        end
+        assets = row.details&.dig("assets") || {}
+        liabilities = row.details&.dig("liabilities") || {}
+
+        cells = [year]
+        cells.concat(schema.people.map { |id| row.ages[id] })
+        cells << row.income
+        cells.concat(schema.incomes.map { |id| per_income[id] })
+        cells << row.expense
+        cells.concat(schema.expenses.map { |id| per_expense[id] })
+        cells.push(row.event_income, row.event_expense, row.net_cashflow)
+        cells.concat(schema.assets.map { |id| assets[id] })
+        cells.concat(schema.liabilities.map { |id| liabilities[id] })
+        cells.push(row.asset_balance, row.liability_balance, row.liquid_balance, row.net_worth)
+        cells
       end
 
       def project_data_dump(project)

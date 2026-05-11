@@ -315,6 +315,25 @@ RSpec.describe(Lifeplan::Forecast::Engine) do
     expect(result.warnings).to(include(a_hash_including("year" => 2026, "code" => "WITHDRAWAL_SHORTFALL")))
   end
 
+  it "include_details exposes per-liability balances on each year" do
+    project = project_with(start: 2026, last: 2027) do |p|
+      p.liabilities << Lifeplan::Records::Liability.from_hash({
+        "id" => "loan",
+        "name" => "Loan",
+        "principal" => 1_000_000,
+        "rate" => 0,
+        "from" => 2026,
+        "to" => 2027,
+        "payment" => 500_000,
+        "frequency" => "yearly",
+      })
+    end
+
+    result = described_class.new(project, include_details: true).call
+    expect(result.years[0].details["liabilities"]).to(include("loan" => 500_000))
+    expect(result.years[1].details["liabilities"]).to(include("loan" => 0))
+  end
+
   it "include_details exposes per-asset balances on each year" do
     project = project_with(start: 2026, last: 2026) do |p|
       p.assets << asset(id: "cash", amount: 1_000_000, return: 0)
