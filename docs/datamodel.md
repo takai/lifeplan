@@ -580,19 +580,23 @@ Represents a major one-time or limited-period life event.
 
 ### Fields
 
-| Field         | Type          | Required | Description                     |
-| ------------- | ------------- | -------: | ------------------------------- |
-| `id`          | string        |      Yes | Event ID                        |
-| `name`        | string        |      Yes | Event name                      |
-| `year`        | year          |       No | Occurrence year                 |
-| `from`        | year          |       No | Start year for multi-year event |
-| `to`          | year          |       No | End year for multi-year event   |
-| `amount`      | integer       |       No | Financial impact                |
-| `currency`    | currency_code |       No | Currency                        |
-| `category`    | string        |       No | Event category                  |
-| `person_id`   | string        |       No | Related person                  |
-| `impact_type` | string        |       No | Financial direction             |
-| `notes`       | string        |       No | Notes                           |
+| Field               | Type          | Required | Description                                                                      |
+| ------------------- | ------------- | -------: | -------------------------------------------------------------------------------- |
+| `id`                | string        |      Yes | Event ID                                                                         |
+| `name`              | string        |      Yes | Event name                                                                       |
+| `year`              | year          |       No | Occurrence year                                                                  |
+| `from`              | year          |       No | Start year for multi-year event                                                  |
+| `to`                | year          |       No | End year for multi-year event                                                    |
+| `amount`            | integer       |       No | Financial impact (income / expense / asset_change events)                        |
+| `currency`          | currency_code |       No | Currency                                                                         |
+| `category`          | string        |       No | Event category                                                                   |
+| `person_id`         | string        |       No | Related person                                                                   |
+| `impact_type`       | string        |       No | Financial direction                                                              |
+| `target_asset_id`   | string        |       No | Asset id targeted by an `asset_change` or `asset_disposal` event                 |
+| `proceeds`          | integer       |       No | Net cash received from an `asset_disposal` event (already net of `costs`)        |
+| `proceeds_to_asset` | string        |       No | Asset id that receives disposal proceeds (default: cash-category asset)          |
+| `costs`             | object        |       No | Itemized disposal costs (informational; not subtracted again)                    |
+| `notes`             | string        |       No | Notes                                                                            |
 
 ### Impact Type Values
 
@@ -600,6 +604,7 @@ Represents a major one-time or limited-period life event.
 income
 expense
 asset_change
+asset_disposal
 liability_change
 informational
 ```
@@ -638,7 +643,41 @@ Either `year` or `from` / `to` should exist.
 
 If `impact_type` is `income`, `expense`, `asset_change`, or `liability_change`, `amount` should exist.
 
+If `impact_type` is `asset_disposal`, both `target_asset_id` and `proceeds` are required, and `target_asset_id` must reference an existing asset.
+
+If `proceeds_to_asset` is provided on an `asset_disposal`, it must reference an existing asset; otherwise the project must have a cash-category asset to receive proceeds.
+
 If `person_id` is provided, it should reference an existing person.
+
+### Forecast Behavior
+
+For an `asset_disposal` event in its active year:
+
+- `target_asset_id` is removed from the balance sheet (its balance is set to `0`).
+- `proceeds` is credited to `proceeds_to_asset` (defaulting to the cash-category asset).
+- The disposal does not affect `income`, `expense`, or `net_cashflow` — proceeds enter the balance sheet directly.
+- `costs` is informational only; it is already netted out of `proceeds` and is exposed in forecast details to help explain the disposal.
+- The implied book-value loss (`book_value` − `proceeds`) flows through to `net_worth` automatically and is surfaced as a contributor in `explain year`.
+
+Example disposal:
+
+```json
+{
+  "id": "mother-condo-sale",
+  "name": "Sell mother's condo",
+  "year": 2040,
+  "impact_type": "asset_disposal",
+  "target_asset_id": "mother-condo",
+  "proceeds": 10000000,
+  "proceeds_to_asset": "cash",
+  "costs": {
+    "broker_fee": 870000,
+    "registration_tax": 100000,
+    "co_owner_share": 4350000
+  },
+  "notes": "Disposal after mother's death. Sister takes 15% share. Net to client ≈ 1,000万."
+}
+```
 
 ## 16a. Contribution
 
