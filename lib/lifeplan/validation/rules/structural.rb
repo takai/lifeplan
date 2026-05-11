@@ -9,13 +9,42 @@ module Lifeplan
       module Structural
         extend self
 
+        HOUSEHOLD_AGGREGATION_VALUES = ["merged", "separate", "joint_with_individual"].freeze
+        HOUSEHOLD_AGGREGATION_SUPPORTED = ["merged"].freeze
+
         def call(project)
           issues = []
           issues.concat(check_required_fields(project))
           issues.concat(check_duplicate_ids(project))
           issues.concat(check_enums(project))
           issues.concat(check_references(project))
+          issues.concat(check_household_aggregation(project))
           issues
+        end
+
+        def check_household_aggregation(project)
+          value = project.household_aggregation
+          return [] if value.nil? || HOUSEHOLD_AGGREGATION_SUPPORTED.include?(value)
+
+          if HOUSEHOLD_AGGREGATION_VALUES.include?(value)
+            [Issue.error(
+              "UNSUPPORTED_AGGREGATION",
+              "household_aggregation '#{value}' is reserved for a future release; " \
+                "only '#{HOUSEHOLD_AGGREGATION_SUPPORTED.join(", ")}' is currently supported.",
+              record_type: "project",
+              record_id: project.id,
+              path: "household_aggregation",
+            )]
+          else
+            [Issue.error(
+              "INVALID_ENUM",
+              "project has invalid household_aggregation '#{value}'. " \
+                "Allowed: #{HOUSEHOLD_AGGREGATION_VALUES.join(", ")}.",
+              record_type: "project",
+              record_id: project.id,
+              path: "household_aggregation",
+            )]
+          end
         end
 
         def check_required_fields(project)

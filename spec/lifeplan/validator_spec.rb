@@ -305,6 +305,38 @@ RSpec.describe(Lifeplan::Validation::Validator) do
     expect(codes).to(include("MISSING_REFERENCE"))
   end
 
+  it "accepts a project without household_aggregation set (defaults to merged)" do
+    project = make_project
+    expect(described_class.new.call(project)).to(be_empty)
+  end
+
+  it "accepts household_aggregation == merged" do
+    project = make_project
+    project.household_aggregation = "merged"
+    expect(described_class.new.call(project)).to(be_empty)
+  end
+
+  it "rejects household_aggregation == separate as unsupported" do
+    project = make_project
+    project.household_aggregation = "separate"
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("UNSUPPORTED_AGGREGATION"))
+  end
+
+  it "rejects household_aggregation == joint_with_individual as unsupported" do
+    project = make_project
+    project.household_aggregation = "joint_with_individual"
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("UNSUPPORTED_AGGREGATION"))
+  end
+
+  it "rejects an unknown household_aggregation value" do
+    project = make_project
+    project.household_aggregation = "bogus"
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("INVALID_ENUM"))
+  end
+
   it "accepts a well-formed asset_disposal event" do
     project = make_project
     project.assets << Lifeplan::Records::Asset.from_hash({

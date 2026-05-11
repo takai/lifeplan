@@ -50,6 +50,33 @@ RSpec.describe(Lifeplan::Project) do
     end
   end
 
+  it "round-trips household_aggregation through JSON" do
+    with_tmp_project do |dir|
+      project = described_class.new(
+        path: dir, id: "p", name: "P", currency: "JPY", start_year: 2026, end_year: 2027,
+      )
+      project.household_aggregation = "merged"
+      project.save
+
+      json = JSON.parse(File.read(File.join(dir, "project.json")))
+      expect(json["household_aggregation"]).to(eq("merged"))
+      expect(described_class.load(dir).household_aggregation).to(eq("merged"))
+    end
+  end
+
+  it "omits household_aggregation from JSON when unset" do
+    with_tmp_project do |dir|
+      project = described_class.new(
+        path: dir, id: "p", name: "P", currency: "JPY", start_year: 2026, end_year: 2027,
+      )
+      project.save
+
+      json = JSON.parse(File.read(File.join(dir, "project.json")))
+      expect(json).not_to(have_key("household_aggregation"))
+      expect(described_class.load(dir).household_aggregation).to(be_nil)
+    end
+  end
+
   it "looks up records by id" do
     with_tmp_project do |dir|
       project = described_class.new(path: dir)

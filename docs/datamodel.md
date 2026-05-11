@@ -228,6 +228,25 @@ Represents one life planning workspace.
 | `assumptions` | array of Assumption |       No | Planning assumptions            |
 | `scenarios`   | array of Scenario   |       No | Scenario definitions            |
 | `proposals`   | array of Proposal   |       No | Pending change proposals        |
+| `household_aggregation` | string    |       No | Per-person cashflow aggregation policy (see below) |
+
+### Household aggregation modes
+
+`household_aggregation` selects how the engine routes cashflow across people.
+
+| Value                   | Supported today | Meaning |
+| ----------------------- | --------------- | ------- |
+| `merged` (default)      | Yes             | All `category=cash` assets are treated as one pool; income and expense apply against the household's cash regardless of `person_id`. |
+| `separate`              | No (reserved)   | Each person's cash is tracked separately; cross-person transfers must be explicit. |
+| `joint_with_individual` | No (reserved)   | Hybrid joint account plus per-person individual accounts. |
+
+When `household_aggregation` is omitted, the engine behaves as if it were `merged`.
+
+Validation flags `separate` and `joint_with_individual` with
+`UNSUPPORTED_AGGREGATION` until the engine implements them. Unknown values are
+flagged with `INVALID_ENUM`.
+
+For per-person reporting on the current `merged` math, see `lifeplan forecast --by-person`.
 
 ### Example
 
@@ -237,7 +256,8 @@ Represents one life planning workspace.
   "name": "Family Life Plan",
   "currency": "JPY",
   "start_year": 2026,
-  "end_year": 2065
+  "end_year": 2065,
+  "household_aggregation": "merged"
 }
 ```
 
