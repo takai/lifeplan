@@ -113,8 +113,81 @@ module Lifeplan
           end
 
           issues.concat(check_contribution_refs(project, asset_ids))
+          issues.concat(check_event_refs(project, asset_ids))
           issues.concat(check_assumption_refs(project, assumption_ids))
           issues
+        end
+
+        def check_event_refs(project, asset_ids)
+          issues = []
+          cash_id = project.assets.find { |a| a.category == "cash" }&.id
+
+          project.events.each do |e|
+            next unless e.impact_type == "asset_disposal"
+
+            issues.concat(disposal_target_issues(e, asset_ids))
+            issues.concat(disposal_proceeds_issues(e))
+            issues.concat(disposal_destination_issues(e, asset_ids, cash_id))
+          end
+          issues
+        end
+
+        def disposal_target_issues(event, asset_ids)
+          if event.target_asset_id.nil?
+            [Issue.error(
+              "MISSING_REQUIRED_FIELD",
+              "event '#{event.id}' (asset_disposal) is missing required field 'target_asset_id'.",
+              record_type: "event",
+              record_id: event.id,
+              path: "target_asset_id",
+            )]
+          elsif !asset_ids.include?(event.target_asset_id)
+            [Issue.error(
+              "MISSING_REFERENCE",
+              "event '#{event.id}' references unknown asset '#{event.target_asset_id}'.",
+              record_type: "event",
+              record_id: event.id,
+              path: "target_asset_id",
+            )]
+          else
+            []
+          end
+        end
+
+        def disposal_proceeds_issues(event)
+          return [] unless event.proceeds.nil?
+
+          [Issue.error(
+            "MISSING_REQUIRED_FIELD",
+            "event '#{event.id}' (asset_disposal) is missing required field 'proceeds'.",
+            record_type: "event",
+            record_id: event.id,
+            path: "proceeds",
+          )]
+        end
+
+        def disposal_destination_issues(event, asset_ids, cash_id)
+          if event.proceeds_to_asset
+            return [] if asset_ids.include?(event.proceeds_to_asset)
+
+            [Issue.error(
+              "MISSING_REFERENCE",
+              "event '#{event.id}' references unknown asset '#{event.proceeds_to_asset}'.",
+              record_type: "event",
+              record_id: event.id,
+              path: "proceeds_to_asset",
+            )]
+          elsif cash_id.nil?
+            [Issue.error(
+              "MISSING_REFERENCE",
+              "event '#{event.id}' has no proceeds_to_asset and the project has no cash-category asset.",
+              record_type: "event",
+              record_id: event.id,
+              path: "proceeds_to_asset",
+            )]
+          else
+            []
+          end
         end
 
         def check_contribution_refs(project, asset_ids)

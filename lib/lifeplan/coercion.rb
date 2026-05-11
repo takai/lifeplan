@@ -114,6 +114,15 @@ module Lifeplan
         return Float(raw) if raw.match?(/\A-?\d+\.\d+\z/)
         return Integer(raw, 10) if raw.match?(/\A-?\d+\z/)
 
+        stripped = raw.strip
+        if stripped.start_with?("{", "[")
+          begin
+            return JSON.parse(stripped)
+          rescue JSON::ParserError
+            # fall through and return raw
+          end
+        end
+
         raw
       end
     end

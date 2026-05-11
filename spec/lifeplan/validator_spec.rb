@@ -212,4 +212,117 @@ RSpec.describe(Lifeplan::Validation::Validator) do
     codes = described_class.new.call(project).map(&:code)
     expect(codes).to(include("MISSING_REFERENCE"))
   end
+
+  it "flags asset_disposal events missing target_asset_id" do
+    project = make_project
+    project.assets << Lifeplan::Records::Asset.from_hash({
+      "id" => "cash", "name" => "Cash", "amount" => 0, "as_of" => "2026-01-01", "category" => "cash",
+    })
+    project.events << Lifeplan::Records::Event.from_hash({
+      "id" => "sale",
+      "name" => "Sale",
+      "year" => 2030,
+      "impact_type" => "asset_disposal",
+      "proceeds" => 1_000_000,
+    })
+
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("MISSING_REQUIRED_FIELD"))
+  end
+
+  it "flags asset_disposal events missing proceeds" do
+    project = make_project
+    project.assets << Lifeplan::Records::Asset.from_hash({
+      "id" => "cash", "name" => "Cash", "amount" => 0, "as_of" => "2026-01-01", "category" => "cash",
+    })
+    project.assets << Lifeplan::Records::Asset.from_hash({
+      "id" => "condo", "name" => "Condo", "amount" => 1_000_000, "as_of" => "2026-01-01",
+    })
+    project.events << Lifeplan::Records::Event.from_hash({
+      "id" => "sale",
+      "name" => "Sale",
+      "year" => 2030,
+      "impact_type" => "asset_disposal",
+      "target_asset_id" => "condo",
+    })
+
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("MISSING_REQUIRED_FIELD"))
+  end
+
+  it "flags asset_disposal events with unknown target_asset_id" do
+    project = make_project
+    project.assets << Lifeplan::Records::Asset.from_hash({
+      "id" => "cash", "name" => "Cash", "amount" => 0, "as_of" => "2026-01-01", "category" => "cash",
+    })
+    project.events << Lifeplan::Records::Event.from_hash({
+      "id" => "sale",
+      "name" => "Sale",
+      "year" => 2030,
+      "impact_type" => "asset_disposal",
+      "target_asset_id" => "ghost",
+      "proceeds" => 1_000_000,
+    })
+
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("MISSING_REFERENCE"))
+  end
+
+  it "flags asset_disposal events with unknown proceeds_to_asset" do
+    project = make_project
+    project.assets << Lifeplan::Records::Asset.from_hash({
+      "id" => "condo", "name" => "Condo", "amount" => 1_000_000, "as_of" => "2026-01-01",
+    })
+    project.events << Lifeplan::Records::Event.from_hash({
+      "id" => "sale",
+      "name" => "Sale",
+      "year" => 2030,
+      "impact_type" => "asset_disposal",
+      "target_asset_id" => "condo",
+      "proceeds" => 1_000_000,
+      "proceeds_to_asset" => "ghost",
+    })
+
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("MISSING_REFERENCE"))
+  end
+
+  it "flags asset_disposal with no proceeds_to_asset and no cash-category asset" do
+    project = make_project
+    project.assets << Lifeplan::Records::Asset.from_hash({
+      "id" => "condo", "name" => "Condo", "amount" => 1_000_000, "as_of" => "2026-01-01",
+    })
+    project.events << Lifeplan::Records::Event.from_hash({
+      "id" => "sale",
+      "name" => "Sale",
+      "year" => 2030,
+      "impact_type" => "asset_disposal",
+      "target_asset_id" => "condo",
+      "proceeds" => 1_000_000,
+    })
+
+    codes = described_class.new.call(project).map(&:code)
+    expect(codes).to(include("MISSING_REFERENCE"))
+  end
+
+  it "accepts a well-formed asset_disposal event" do
+    project = make_project
+    project.assets << Lifeplan::Records::Asset.from_hash({
+      "id" => "cash", "name" => "Cash", "amount" => 0, "as_of" => "2026-01-01", "category" => "cash",
+    })
+    project.assets << Lifeplan::Records::Asset.from_hash({
+      "id" => "condo", "name" => "Condo", "amount" => 1_000_000, "as_of" => "2026-01-01",
+    })
+    project.events << Lifeplan::Records::Event.from_hash({
+      "id" => "sale",
+      "name" => "Sale",
+      "year" => 2030,
+      "impact_type" => "asset_disposal",
+      "target_asset_id" => "condo",
+      "proceeds" => 800_000,
+    })
+
+    issues = described_class.new.call(project)
+    expect(issues).to(be_empty)
+  end
 end

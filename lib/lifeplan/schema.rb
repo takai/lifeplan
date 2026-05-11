@@ -166,9 +166,14 @@ module Lifeplan
         :impact_type,
         :string,
         description: "Financial direction",
-        allowed: ["income", "expense", "asset_change", "liability_change", "informational"],
+        allowed: [
+          "income", "expense", "asset_change", "asset_disposal", "liability_change", "informational",
+        ],
       ),
-      field(:target_asset_id, :string, description: "Asset id targeted by an asset_change event"),
+      field(:target_asset_id, :string, description: "Asset id targeted by an asset_change or asset_disposal event"),
+      field(:proceeds, :integer, description: "Net cash received from an asset_disposal event"),
+      field(:proceeds_to_asset, :string, description: "Asset id that receives disposal proceeds (default: cash asset)"),
+      field(:costs, :any, description: "Itemized disposal costs (informational; already netted into proceeds)"),
       field(:notes, :string, description: "Notes"),
     ].freeze
 

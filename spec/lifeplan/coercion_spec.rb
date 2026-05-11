@@ -36,4 +36,11 @@ RSpec.describe(Lifeplan::Coercion) do
       described_class.coerce_field("income", "amount", "abc")
     end.to(raise_error(Lifeplan::InvalidArguments))
   end
+
+  it "coerces event.costs JSON object string to a hash" do
+    result = described_class.coerce_field(
+      "event", "costs", '{"broker_fee":870000,"co_owner_share":4350000}'
+    )
+    expect(result).to(eq({ "broker_fee" => 870_000, "co_owner_share" => 4_350_000 }))
+  end
 end

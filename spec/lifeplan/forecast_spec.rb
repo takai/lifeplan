@@ -206,6 +206,80 @@ RSpec.describe(Lifeplan::Forecast::Engine) do
     expect(result.years.first.net_cashflow).to(eq(0))
   end
 
+  it "applies asset_disposal events: zeros the target, credits proceeds, and tracks book-value loss" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.assets << asset(id: "cash", amount: 0, return: 0, category: "cash")
+      p.assets << asset(id: "mother-condo", amount: 24_650_000, return: 0, category: "real_estate")
+      p.events << Lifeplan::Records::Event.from_hash({
+        "id" => "condo-sale",
+        "name" => "Condo sale",
+        "year" => 2026,
+        "impact_type" => "asset_disposal",
+        "target_asset_id" => "mother-condo",
+        "proceeds" => 10_000_000,
+        "proceeds_to_asset" => "cash",
+      })
+    end
+
+    result = described_class.new(project, include_details: true).call
+    row = result.years.first
+    expect(row.net_cashflow).to(eq(0))
+    expect(row.asset_balance).to(eq(10_000_000))
+    expect(row.details["assets"]).to(include("cash" => 10_000_000, "mother-condo" => 0))
+    disposal = row.details["asset_disposals"].first
+    expect(disposal).to(include(
+      "event_id" => "condo-sale",
+      "asset_id" => "mother-condo",
+      "proceeds_to" => "cash",
+      "proceeds" => 10_000_000,
+      "book_value" => 24_650_000,
+      "book_value_loss" => 14_650_000,
+    ))
+  end
+
+  it "defaults asset_disposal proceeds destination to the cash-category asset" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.assets << asset(id: "wallet", amount: 0, return: 0, category: "cash")
+      p.assets << asset(id: "stocks", amount: 5_000_000, return: 0, category: "securities")
+      p.events << Lifeplan::Records::Event.from_hash({
+        "id" => "liquidation",
+        "name" => "Liquidation",
+        "year" => 2026,
+        "impact_type" => "asset_disposal",
+        "target_asset_id" => "stocks",
+        "proceeds" => 4_800_000,
+      })
+    end
+
+    result = described_class.new(project, include_details: true).call
+    expect(result.years.first.details["assets"]).to(include("wallet" => 4_800_000, "stocks" => 0))
+    expect(result.years.first.details["asset_disposals"].first).to(include("proceeds_to" => "wallet"))
+  end
+
+  it "passes through asset_disposal costs into details" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.assets << asset(id: "cash", amount: 0, return: 0, category: "cash")
+      p.assets << asset(id: "condo", amount: 24_650_000, return: 0, category: "real_estate")
+      p.events << Lifeplan::Records::Event.from_hash({
+        "id" => "sale",
+        "name" => "Sale",
+        "year" => 2026,
+        "impact_type" => "asset_disposal",
+        "target_asset_id" => "condo",
+        "proceeds" => 10_000_000,
+        "proceeds_to_asset" => "cash",
+        "costs" => {
+          "broker_fee" => 870_000,
+          "co_owner_share" => 4_350_000,
+        },
+      })
+    end
+
+    result = described_class.new(project, include_details: true).call
+    disposal = result.years.first.details["asset_disposals"].first
+    expect(disposal["costs"]).to(eq({ "broker_fee" => 870_000, "co_owner_share" => 4_350_000 }))
+  end
+
   it "withdraws from investment assets when cash goes negative" do
     project = project_with(start: 2026, last: 2026) do |p|
       p.assumptions << Lifeplan::Records::Assumption.from_hash({

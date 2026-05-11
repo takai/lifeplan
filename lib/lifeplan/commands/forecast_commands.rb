@@ -44,7 +44,7 @@ module Lifeplan
 
       def explain_payload(target, args, opts)
         project = resolved_project(opts)
-        result = build_forecast(project, opts)
+        result = build_forecast(project, opts.merge("include-details": true))
 
         case target.to_s
         when "year" then explain_year(project, result, args.first&.to_i)
@@ -114,7 +114,7 @@ module Lifeplan
         row = result.years.find { |r| r.year == year }
         raise InvalidArguments, "year #{year} not in forecast range" unless row
 
-        contributors = year_contributors(project, year)
+        contributors = year_contributors(project, year, row.details)
         data = {
           "target_type" => "year",
           "target" => year,
@@ -164,7 +164,7 @@ module Lifeplan
         payload(data: data, text: data["summary"])
       end
 
-      def year_contributors(project, year)
+      def year_contributors(project, year, details = nil)
         contributors = []
         project.incomes.each do |r|
           amount = Lifeplan::Forecast::YearBuilder.income_for(r, year, project.assumptions)
@@ -178,7 +178,17 @@ module Lifeplan
 
           contributors << contributor("expense", r, -amount)
         end
+        disposals_by_event = (details && details["asset_disposals"] || [])
+          .to_h { |d| [d["event_id"], d] }
         project.events.each do |r|
+          if r.impact_type == "asset_disposal"
+            disposal = disposals_by_event[r.id]
+            next unless disposal
+
+            contributors.concat(disposal_contributors(r, disposal))
+            next
+          end
+
           amount = Lifeplan::Forecast::YearBuilder.event_amount(r, year)
           next if amount.zero?
 
@@ -186,6 +196,25 @@ module Lifeplan
           contributors << contributor("event", r, signed)
         end
         contributors
+      end
+
+      def disposal_contributors(event, disposal)
+        [
+          {
+            "record_type" => "event",
+            "record_id" => event.id,
+            "name" => "#{event.name} (book value loss)",
+            "amount" => -disposal["book_value_loss"].to_i,
+            "kind" => "book_value_loss",
+          },
+          {
+            "record_type" => "event",
+            "record_id" => event.id,
+            "name" => "#{event.name} (proceeds)",
+            "amount" => disposal["proceeds"].to_i,
+            "kind" => "proceeds",
+          },
+        ]
       end
 
       def contributor(type, record, amount)

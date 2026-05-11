@@ -31,7 +31,7 @@ module Lifeplan
 
           income = sum_records(active_incomes, year, :income_for)
           expense = sum_records(@project.expenses, year, :expense_for)
-          event_income, event_expense, asset_changes = event_totals(year)
+          event_income, event_expense, asset_changes, asset_disposals = event_totals(year, cash_id)
 
           liability_outflow = liabilities.sum { |l| l.yearly_outflow(year) }
           net_cashflow = income + event_income - expense - event_expense - liability_outflow
@@ -39,6 +39,7 @@ module Lifeplan
           contributions = apply_contributions(asset_balances, year)
           contributions.concat(apply_contribution_records(asset_balances, year))
           apply_asset_changes(asset_balances, asset_changes)
+          apply_asset_disposals(asset_balances, asset_disposals)
 
           if cash_id
             asset_balances[cash_id] += net_cashflow
@@ -76,7 +77,9 @@ module Lifeplan
             liquid_balance: liquid_balance,
             liability_balance: liability_balance,
             net_worth: asset_balance - liability_balance,
-            details: build_details(asset_balances, contributions, asset_changes, withdrawals),
+            details: build_details(
+              asset_balances, contributions, asset_changes, asset_disposals, withdrawals
+            ),
           )
         end
 
@@ -101,22 +104,50 @@ module Lifeplan
         @project.incomes.reject(&:contribute_to)
       end
 
-      def event_totals(year)
+      def event_totals(year, cash_id)
         income = 0
         expense = 0
         asset_changes = []
+        asset_disposals = []
         @project.events.each do |e|
-          amount = YearBuilder.event_amount(e, year)
-          next if amount.zero?
-
           case e.impact_type
-          when "income" then income += amount
-          when "expense" then expense += amount
-          when "asset_change"
-            asset_changes << { "asset_id" => e.target_asset_id, "amount" => amount } if e.target_asset_id
+          when "income", "expense", "asset_change"
+            amount = YearBuilder.event_amount(e, year)
+            next if amount.zero?
+
+            case e.impact_type
+            when "income" then income += amount
+            when "expense" then expense += amount
+            when "asset_change"
+              if e.target_asset_id
+                asset_changes << { "asset_id" => e.target_asset_id, "amount" => amount }
+              end
+            end
+          when "asset_disposal"
+            next unless e.target_asset_id && disposal_active?(e, year)
+
+            asset_disposals << {
+              "event_id" => e.id,
+              "asset_id" => e.target_asset_id,
+              "proceeds_to" => e.proceeds_to_asset || cash_id,
+              "proceeds" => e.proceeds || 0,
+              "costs" => e.costs || {},
+            }
           end
         end
-        [income, expense, asset_changes]
+        [income, expense, asset_changes, asset_disposals]
+      end
+
+      def disposal_active?(event, year)
+        if event.year
+          event.year == year
+        elsif event.from || event.to
+          from = event.from || year
+          to = event.to || year
+          year.between?(from, to)
+        else
+          false
+        end
       end
 
       def apply_contributions(asset_balances, year)
@@ -196,6 +227,19 @@ module Lifeplan
         end
       end
 
+      def apply_asset_disposals(asset_balances, asset_disposals)
+        asset_disposals.each do |disposal|
+          asset_id = disposal["asset_id"]
+          book_value = (asset_balances[asset_id] || 0.0).round
+          asset_balances[asset_id] = 0.0
+          proceeds = disposal["proceeds"].to_i
+          dest = disposal["proceeds_to"]
+          asset_balances[dest] = (asset_balances[dest] || 0.0) + proceeds if dest && proceeds.positive?
+          disposal["book_value"] = book_value
+          disposal["book_value_loss"] = book_value - proceeds
+        end
+      end
+
       def settle_cash_deficit(asset_balances, cash_id, cash_pool)
         deficit_source = cash_id ? asset_balances[cash_id].to_f : cash_pool
         return [[], 0.0] unless deficit_source.negative?
@@ -253,13 +297,14 @@ module Lifeplan
         end
       end
 
-      def build_details(asset_balances, contributions, asset_changes, withdrawals)
+      def build_details(asset_balances, contributions, asset_changes, asset_disposals, withdrawals)
         return unless @include_details
 
         {
           "assets" => asset_balances.transform_values(&:round),
           "contributions" => contributions,
           "asset_changes" => asset_changes,
+          "asset_disposals" => asset_disposals,
           "withdrawals" => withdrawals,
         }
       end
