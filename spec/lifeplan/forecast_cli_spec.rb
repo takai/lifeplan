@@ -108,6 +108,47 @@ RSpec.describe("forecast and explain commands") do
     end
   end
 
+  it "forecast --by-person --format json includes per_person on each year row" do
+    with_tmp_project do |dir|
+      init_with_data(dir)
+      out = capture_stdout do
+        cli.start([
+          "forecast", "--project", dir, "--format", "json", "--by-person",
+        ])
+      end
+      data = JSON.parse(out)
+      year0 = data["data"]["years"][0]
+      expect(year0).to(include("per_person"))
+      expect(year0["per_person"]["_shared"]).to(include("income" => 1_000_000, "expense" => 400_000))
+    end
+  end
+
+  it "forecast --by-person --format markdown renders a per-person table per year" do
+    with_tmp_project do |dir|
+      init_with_data(dir)
+      out = capture_stdout do
+        cli.start([
+          "forecast", "--project", dir, "--format", "markdown", "--by-person",
+        ])
+      end
+      expect(out).to(include("Per-person breakdown for 2026"))
+      expect(out).to(include("| _shared |"))
+    end
+  end
+
+  it "forecast --by-person --format csv produces long-format rows" do
+    with_tmp_project do |dir|
+      init_with_data(dir)
+      out = capture_stdout do
+        cli.start([
+          "forecast", "--project", dir, "--format", "csv", "--by-person",
+        ])
+      end
+      expect(out).to(include("year,person_id,income,expense"))
+      expect(out).to(include("2026,_shared,1000000,400000"))
+    end
+  end
+
   it "explain year prints contributors" do
     with_tmp_project do |dir|
       init_with_data(dir)

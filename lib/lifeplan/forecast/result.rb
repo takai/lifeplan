@@ -31,6 +31,7 @@ module Lifeplan
       :liquid_balance,
       :liability_balance,
       :net_worth,
+      :per_person,
       :details,
     ) do
       def to_h
@@ -46,6 +47,7 @@ module Lifeplan
           "liquid_balance" => liquid_balance,
           "liability_balance" => liability_balance,
           "net_worth" => net_worth,
+          "per_person" => per_person,
           "details" => details,
         }
       end

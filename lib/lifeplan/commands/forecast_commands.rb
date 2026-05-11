@@ -25,6 +25,7 @@ module Lifeplan
       def forecast_payload(opts)
         project = resolved_project(opts)
         result = build_forecast(project, opts)
+        by_person = !!(opts[:"by-person"] || opts[:by_person])
 
         rows = result.years.map(&:to_h)
         data = {
@@ -36,9 +37,9 @@ module Lifeplan
         }
         payload(
           data: data,
-          text: forecast_text(result),
-          markdown: forecast_markdown(result),
-          csv: forecast_csv(rows),
+          text: forecast_text(result, by_person: by_person),
+          markdown: forecast_markdown(result, by_person: by_person),
+          csv: by_person ? per_person_csv(result) : forecast_csv(rows),
         )
       end
 
@@ -73,10 +74,15 @@ module Lifeplan
           from: opts[:from]&.to_i,
           to: opts[:to]&.to_i,
           include_details: opts[:"include-details"] || opts[:include_details] || false,
+          include_per_person: opts[:"by-person"] || opts[:by_person] || false,
         ).call
       end
 
-      def forecast_text(result)
+      PER_PERSON_COLUMNS = [
+        "income", "expense", "asset_balance", "liability_balance", "net_worth",
+      ].freeze
+
+      def forecast_text(result, by_person: false)
         header = format_row(FORECAST_COLUMNS)
         lines = [header, "-" * header.length]
         result.years.each do |row|
@@ -85,6 +91,10 @@ module Lifeplan
         lines << ""
         lines << "Summary:"
         result.summary.to_h.each { |k, v| lines << "  #{k}: #{v.inspect}" }
+        if by_person
+          lines << ""
+          lines.concat(per_person_text_blocks(result))
+        end
         lines.join("\n")
       end
 
@@ -95,13 +105,71 @@ module Lifeplan
         end
       end
 
-      def forecast_markdown(result)
+      def forecast_markdown(result, by_person: false)
         lines = ["| " + FORECAST_COLUMNS.join(" | ") + " |"]
         lines << "|" + (["---"] * FORECAST_COLUMNS.size).join("|") + "|"
         result.years.each do |row|
           lines << "| " + FORECAST_COLUMNS.map { |c| row[c.to_sym].to_s }.join(" | ") + " |"
         end
+        if by_person
+          lines << ""
+          lines.concat(per_person_markdown_blocks(result))
+        end
         lines.join("\n")
+      end
+
+      def per_person_text_blocks(result)
+        blocks = []
+        result.years.each do |row|
+          next unless row.per_person
+
+          blocks << "Per-person breakdown for #{row.year}:"
+          header_cols = ["person"] + PER_PERSON_COLUMNS
+          blocks << format_row(header_cols)
+          blocks << "-" * format_row(header_cols).length
+          per_person_rows(row.per_person).each do |key, bucket|
+            blocks << format_row([key] + PER_PERSON_COLUMNS.map { |c| bucket[c] })
+          end
+          blocks << ""
+        end
+        blocks
+      end
+
+      def per_person_markdown_blocks(result)
+        blocks = []
+        result.years.each do |row|
+          next unless row.per_person
+
+          blocks << "### Per-person breakdown for #{row.year}"
+          blocks << "| person | " + PER_PERSON_COLUMNS.join(" | ") + " |"
+          blocks << "|" + (["---"] * (PER_PERSON_COLUMNS.size + 1)).join("|") + "|"
+          per_person_rows(row.per_person).each do |key, bucket|
+            blocks << "| " + ([key] + PER_PERSON_COLUMNS.map { |c| bucket[c].to_s }).join(" | ") + " |"
+          end
+          blocks << ""
+        end
+        blocks
+      end
+
+      def per_person_csv(result)
+        CSV.generate do |csv|
+          csv << ["year", "person_id"] + PER_PERSON_COLUMNS
+          result.years.each do |row|
+            next unless row.per_person
+
+            per_person_rows(row.per_person).each do |key, bucket|
+              csv << [row.year, key] + PER_PERSON_COLUMNS.map { |c| bucket[c] }
+            end
+          end
+        end
+      end
+
+      def per_person_rows(per_person)
+        shared = per_person["_shared"]
+        named = per_person.reject { |k, _| k == "_shared" }
+        rows = named.to_a
+        rows << ["_shared", shared] if shared
+        rows
       end
 
       def format_row(values)

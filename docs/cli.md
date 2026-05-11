@@ -557,6 +557,7 @@ lifeplan forecast
 | `--scenario <id>`   | Scenario to forecast              |
 | `--format <format>` | `text`, `json`, `csv`, `markdown` |
 | `--include-details` | Include item-level breakdown      |
+| `--by-person`       | Include per-`person_id` aggregation in output (adds a per-person table per year; CSV switches to long format) |
 
 ### Output Columns
 

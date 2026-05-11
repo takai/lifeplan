@@ -130,6 +130,7 @@ module Lifeplan
     method_option :from, type: :numeric
     method_option :to, type: :numeric
     method_option :"include-details", type: :boolean, default: false
+    method_option :"by-person", type: :boolean, default: false
     def forecast
       render(forecast_payload(options))
     end

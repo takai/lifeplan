@@ -959,7 +959,28 @@ Represents one year of forecast output.
 | `asset_balance`     | integer |      Yes | Total asset balance                   |
 | `liability_balance` | integer |       No | Total liability balance               |
 | `net_worth`         | integer |       No | Assets minus liabilities              |
+| `per_person`        | object  |       No | Per-`person_id` aggregation (see below) |
 | `details`           | object  |       No | Item-level breakdown                  |
+
+### Per-person aggregation (`per_person`)
+
+When the forecast is requested with `--by-person`, each `ForecastYear` carries a
+`per_person` object mapping `person_id` to a bucket of `{income, expense,
+asset_balance, liability_balance, net_worth}`. A literal `_shared` key holds
+records that have no `person_id`.
+
+Buckets are read-side aggregations only: the engine still computes cashflow at
+the household level, so household totals are authoritative. Per-person sums
+reconcile with the household totals for `income`, `expense`, `asset_balance`,
+and `net_worth`.
+
+Caveats:
+
+- Liabilities have no `person_id` field today, so `liability_balance` always
+  rolls into `_shared`.
+- The `household_aggregation` policy (`merged` / `separate` /
+  `joint_with_individual`) — which would actually route cashflow per person —
+  is not yet implemented and is tracked separately.
 
 ### Example
 

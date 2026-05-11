@@ -9,12 +9,16 @@ require "lifeplan/forecast/summary_builder"
 module Lifeplan
   module Forecast
     class Engine
-      def initialize(project, scenario_id: "base", from: nil, to: nil, include_details: false)
+      def initialize(
+        project, scenario_id: "base", from: nil, to: nil,
+        include_details: false, include_per_person: false
+      )
         @project = project
         @scenario_id = scenario_id
         @from = from || project.start_year
         @to = to || project.end_year
         @include_details = include_details
+        @include_per_person = include_per_person
       end
 
       def call
@@ -77,6 +81,7 @@ module Lifeplan
             liquid_balance: liquid_balance,
             liability_balance: liability_balance,
             net_worth: asset_balance - liability_balance,
+            per_person: build_per_person(year, asset_balances, cash_pool, liability_balance),
             details: build_details(
               asset_balances, contributions, asset_changes, asset_disposals, withdrawals
             ),
@@ -294,6 +299,80 @@ module Lifeplan
           next unless base
 
           h[person.id] = year - base
+        end
+      end
+
+      def build_per_person(year, asset_balances, cash_pool, liability_balance)
+        return unless @include_per_person
+
+        buckets = base_per_person_buckets
+        accumulate_income_per_person(buckets, year)
+        accumulate_expense_per_person(buckets, year)
+        accumulate_event_per_person(buckets, year)
+        accumulate_asset_per_person(buckets, asset_balances, cash_pool)
+        buckets["_shared"]["liability_balance"] += liability_balance
+        buckets.each_value { |b| b["net_worth"] = b["asset_balance"] - b["liability_balance"] }
+        prune_per_person(buckets)
+      end
+
+      def base_per_person_buckets
+        buckets = {}
+        (@project.profile&.people || []).each do |p|
+          buckets[p.id] = empty_per_person_bucket
+        end
+        buckets["_shared"] = empty_per_person_bucket
+        buckets
+      end
+
+      def empty_per_person_bucket
+        { "income" => 0, "expense" => 0, "asset_balance" => 0, "liability_balance" => 0, "net_worth" => 0 }
+      end
+
+      def accumulate_income_per_person(buckets, year)
+        active_incomes.each do |r|
+          amount = YearBuilder.income_for(r, year, @project.assumptions)
+          next if amount.zero?
+
+          bucket_for(buckets, r.person_id)["income"] += amount
+        end
+      end
+
+      def accumulate_expense_per_person(buckets, year)
+        @project.expenses.each do |r|
+          amount = YearBuilder.expense_for(r, year, @project.assumptions)
+          next if amount.zero?
+
+          bucket_for(buckets, r.person_id)["expense"] += amount
+        end
+      end
+
+      def accumulate_event_per_person(buckets, year)
+        @project.events.each do |e|
+          next unless ["income", "expense"].include?(e.impact_type)
+
+          amount = YearBuilder.event_amount(e, year)
+          next if amount.zero?
+
+          key = e.impact_type == "income" ? "income" : "expense"
+          bucket_for(buckets, e.person_id)[key] += amount
+        end
+      end
+
+      def accumulate_asset_per_person(buckets, asset_balances, cash_pool)
+        @project.assets.each do |a|
+          bucket_for(buckets, a.person_id)["asset_balance"] += asset_balances[a.id].to_f.round
+        end
+        buckets["_shared"]["asset_balance"] += cash_pool.round
+      end
+
+      def bucket_for(buckets, person_id)
+        key = person_id && buckets.key?(person_id) ? person_id : "_shared"
+        buckets[key]
+      end
+
+      def prune_per_person(buckets)
+        buckets.reject do |key, bucket|
+          key == "_shared" && bucket.values.all?(&:zero?)
         end
       end
 
