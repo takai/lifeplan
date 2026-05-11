@@ -81,12 +81,41 @@ RSpec.describe("export and report commands") do
     end
   end
 
-  it "export forecast --format csv emits forecast rows" do
+  it "export forecast --format csv emits wide per-record columns" do
     with_tmp_project do |dir|
       init(dir)
       out = capture { cli.start(["export", "forecast", "--project", dir, "--format", "csv"]) }
-      expect(out).to(include("year,income,expense"))
+      header = out.split("\n").first
+      expect(header).to(include("income_total"))
+      expect(header).to(include("income_salary"))
+      expect(header).to(include("expense_living"))
+      expect(header).to(include("asset_cash"))
+      expect(header).to(include("liquid_balance"))
       expect(out).to(include("2026"))
+    end
+  end
+
+  it "export report --format markdown delegates to the report builder" do
+    with_tmp_project do |dir|
+      init(dir)
+      out = capture { cli.start(["export", "report", "--project", dir, "--format", "markdown"]) }
+      expect(out).to(include("# Life Plan Report: Plan"))
+      expect(out).to(include("## Forecast"))
+    end
+  end
+
+  it "export forecast --output writes to file" do
+    with_tmp_project do |dir|
+      init(dir)
+      out_path = File.join(dir, "forecast.csv")
+      capture do
+        cli.start([
+          "export", "forecast", "--project", dir, "--format", "csv", "--output", out_path,
+        ])
+      end
+      expect(File.exist?(out_path)).to(be(true))
+      header = File.read(out_path).split("\n").first
+      expect(header).to(include("income_total"))
     end
   end
 

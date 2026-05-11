@@ -83,7 +83,12 @@ module Lifeplan
             net_worth: asset_balance - liability_balance,
             per_person: build_per_person(year, asset_balances, cash_pool, liability_balance),
             details: build_details(
-              asset_balances, contributions, asset_changes, asset_disposals, withdrawals
+              asset_balances: asset_balances,
+              contributions: contributions,
+              asset_changes: asset_changes,
+              asset_disposals: asset_disposals,
+              withdrawals: withdrawals,
+              liabilities: liabilities,
             ),
           )
         end
@@ -376,7 +381,7 @@ module Lifeplan
         end
       end
 
-      def build_details(asset_balances, contributions, asset_changes, asset_disposals, withdrawals)
+      def build_details(asset_balances:, contributions:, asset_changes:, asset_disposals:, withdrawals:, liabilities:)
         return unless @include_details
 
         {
@@ -385,6 +390,7 @@ module Lifeplan
           "asset_changes" => asset_changes,
           "asset_disposals" => asset_disposals,
           "withdrawals" => withdrawals,
+          "liabilities" => liabilities.to_h { |l| [l.record.id, l.balance] },
         }
       end
     end

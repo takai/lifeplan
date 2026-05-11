@@ -18,7 +18,13 @@ module Lifeplan
       end
 
       def render(payload)
-        Formatters::Registry.render(payload, format: options[:format])
+        if options[:output]
+          File.open(options[:output], "w") do |io|
+            Formatters::Registry.render(payload, format: options[:format], io: io)
+          end
+        else
+          Formatters::Registry.render(payload, format: options[:format])
+        end
       end
 
       def payload(data:, text: nil, markdown: nil, csv: nil, metadata: {})

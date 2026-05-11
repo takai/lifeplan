@@ -206,10 +206,14 @@ module Lifeplan
       render(sensitivity_payload(options))
     end
 
-    desc "export TARGET [ARGS...]", "Export project data, forecasts, scenarios, comparisons, or validation"
+    desc "export TARGET [ARGS...]", "Export project data, forecasts, scenarios, comparisons, validation, or report"
     method_option :scenario, type: :string
     method_option :from, type: :numeric
     method_option :to, type: :numeric
+    method_option :output, type: :string, desc: "Write output to FILE instead of stdout"
+    method_option :"include-validation", type: :boolean, default: false
+    method_option :"include-assumptions", type: :boolean, default: true
+    method_option :"include-scenarios", type: :boolean, default: false
     def export(target, *args)
       render(export_payload(target, args, options))
     end

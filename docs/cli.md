@@ -1053,15 +1053,49 @@ forecast
 scenario
 comparison
 validation
+report
 ```
+
+### Options
+
+| Option                  | Description                                                            |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `--scenario <id>`       | Scenario to operate on (where applicable)                              |
+| `--from <year>`         | Forecast start year                                                    |
+| `--to <year>`           | Forecast end year                                                      |
+| `--format <format>`     | `text`/`table`, `json`, `csv`, `markdown`/`md`                         |
+| `--output <file>`       | Write to FILE instead of stdout (overwrites if it exists)              |
+| `--include-validation`  | Include validation section (`report` target)                           |
+| `--include-assumptions` | Include assumptions section (`report` target; default on)              |
+| `--include-scenarios`   | Include scenario comparison section (`report` target)                  |
+
+### Forecast CSV columns
+
+`export forecast --format csv` emits a wide row per year with one column per
+input record so the data is directly usable in a spreadsheet:
+
+```text
+year, age_<person>..., income_total, income_<id>..., expense_total,
+expense_<id>..., event_income, event_expense, net_cashflow,
+asset_<id>..., liability_<id>_balance..., asset_balance,
+liability_balance, liquid_balance, net_worth
+```
+
+Per-record values are recomputed from the input records for the forecast year;
+per-asset and per-liability balances come from the engine's `include_details`
+output.
 
 ### Examples
 
 ```bash
-lifeplan export forecast --scenario base --format csv
+lifeplan export forecast --scenario base --format csv --output forecast.csv
 lifeplan export data --format json
 lifeplan export comparison --scenario conservative --format markdown
+lifeplan export report --scenario side-fire-55 --format markdown --output report.md
 ```
+
+Templates for the `report` target are deferred — track in the related
+issue.
 
 ---
 
