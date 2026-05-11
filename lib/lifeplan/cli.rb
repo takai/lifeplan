@@ -12,6 +12,7 @@ require "lifeplan/commands/validation_commands"
 require "lifeplan/commands/forecast_commands"
 require "lifeplan/commands/scenario_commands"
 require "lifeplan/commands/compare_commands"
+require "lifeplan/commands/sensitivity_commands"
 require "lifeplan/commands/proposal_commands"
 require "lifeplan/commands/calc_commands"
 require "lifeplan/commands/export_commands"
@@ -26,6 +27,7 @@ module Lifeplan
     include Commands::ValidationCommands
     include Commands::ForecastCommands
     include Commands::CompareCommands
+    include Commands::SensitivityCommands
     include Commands::ProposalCommands
     include Commands::ExportCommands
     include Commands::ReportCommands
@@ -189,6 +191,19 @@ module Lifeplan
     method_option :metrics, type: :string
     def compare(*scenarios)
       render(compare_payload(scenarios, options))
+    end
+
+    desc "sensitivity", "Run a 2D parameter sweep against a chosen forecast metric"
+    method_option :"base-scenario", type: :string
+    method_option :"x-axis", type: :string, required: true
+    method_option :"x-values", type: :string, required: true
+    method_option :"y-axis", type: :string, required: true
+    method_option :"y-values", type: :string, required: true
+    method_option :metric, type: :string, required: true
+    method_option :from, type: :numeric
+    method_option :to, type: :numeric
+    def sensitivity
+      render(sensitivity_payload(options))
     end
 
     desc "export TARGET [ARGS...]", "Export project data, forecasts, scenarios, comparisons, or validation"

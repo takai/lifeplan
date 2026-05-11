@@ -23,6 +23,12 @@ module Lifeplan
         derived
       end
 
+      def derive(scenario_id, overrides)
+        derived = call(scenario_id)
+        Array(overrides).each { |override| apply_override(derived, override) }
+        derived
+      end
+
       private
 
       def find_scenario!(id)

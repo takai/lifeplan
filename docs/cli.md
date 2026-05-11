@@ -781,6 +781,64 @@ conservative          -18,849      -21,314            2049             2066
 
 ---
 
+## 14.7 `lifeplan sensitivity`
+
+Run a 2D parameter sweep against a chosen forecast metric. For each (x, y) pair
+the base scenario is cloned, both overrides are applied, a forecast is run, and
+the chosen metric is extracted into a 2D grid.
+
+```bash
+lifeplan sensitivity \
+    --x-axis <path> --x-values v1,v2,... \
+    --y-axis <path> --y-values v1,v2,... \
+    --metric <metric>
+```
+
+### Options
+
+| Option                  | Description                                                       |
+| ----------------------- | ----------------------------------------------------------------- |
+| `--base-scenario <id>`  | Scenario to clone before applying overrides (default: `base`)     |
+| `--x-axis <path>`       | Override path for rows (e.g. `expense.living-retirement.amount`)  |
+| `--x-values <list>`     | Comma-separated values for the x-axis                             |
+| `--y-axis <path>`       | Override path for columns (e.g. `event.so-cashout.amount`)        |
+| `--y-values <list>`     | Comma-separated values for the y-axis                             |
+| `--metric <name>`       | Metric to extract (see below)                                     |
+| `--from <year>`         | Forecast start year                                               |
+| `--to <year>`           | Forecast end year                                                 |
+| `--format <format>`     | `text`/`table`, `json`, `csv`, `markdown`/`md`                    |
+
+### Metric Syntax
+
+Year-specific metrics use the `<metric>_at_<year>` form. Supported bases:
+`net_worth`, `asset_balance`, `liquid_balance` (alias `liquid`).
+
+Summary metrics (no year suffix): `final_asset_balance`, `minimum_asset_balance`,
+`minimum_asset_balance_year`, `first_negative_asset_year`, `asset_at_retirement`,
+`retirement_year`, `total_income`, `total_expense`, `depletion_year` (the first
+year `liquid_balance` goes negative, or `—`).
+
+### Annotation
+
+Cells where `liquid_balance` ever goes negative during the forecast are suffixed
+with `*` in text / markdown / csv output, and carry `"liquid_depleted": true` in
+JSON output.
+
+### Example
+
+```bash
+lifeplan sensitivity \
+    --base-scenario side-fire-55 \
+    --x-axis "expense.living-retirement.amount" \
+    --x-values 3160000,3520000,4000000,4360000,4900000 \
+    --y-axis "event.so-cashout.amount" \
+    --y-values 0,10000000,20000000,30000000,50000000 \
+    --metric net_worth_at_2066 \
+    --format table
+```
+
+---
+
 # 15. Calculation Commands
 
 Calculation commands are stateless utilities. They do not require project data unless explicitly connected to a scenario.
