@@ -160,6 +160,68 @@ RSpec.describe("forecast and explain commands") do
     end
   end
 
+  it "explain year emits assumptions and warnings in JSON" do
+    with_tmp_project do |dir|
+      init_with_data(dir)
+      out = capture_stdout do
+        cli.start(["explain", "year", "2026", "--project", dir, "--format", "json"])
+      end
+      data = JSON.parse(out)["data"]
+      expect(data).to(include("assumptions", "warnings"))
+    end
+  end
+
+  it "explain metric depletion_year reports the depletion year and cumulative gap" do
+    with_tmp_project do |dir|
+      cli.start(["init", dir, "--name", "P", "--start-year", "2026", "--end-year", "2030"])
+      cli.start([
+        "add",
+        "expense",
+        "--project",
+        dir,
+        "--id",
+        "big",
+        "--name",
+        "Big",
+        "--amount",
+        "2000000",
+        "--frequency",
+        "yearly",
+        "--from",
+        "2026",
+        "--to",
+        "2030",
+      ])
+      cli.start([
+        "add",
+        "asset",
+        "--project",
+        dir,
+        "--id",
+        "cash",
+        "--name",
+        "Cash",
+        "--amount",
+        "1000000",
+        "--as-of",
+        "2026-01-01",
+        "--category",
+        "cash",
+        "--liquid",
+        "true",
+      ])
+      out = capture_stdout do
+        cli.start([
+          "explain", "metric", "depletion_year", "--project", dir, "--format", "json",
+        ])
+      end
+      data = JSON.parse(out)["data"]
+      expect(data["target_type"]).to(eq("metric"))
+      expect(data["value"]).to(be_a(Integer))
+      expect(data["cumulative"]).to(include("income", "expense", "withdrawals"))
+    end
+  end
+
   it "explain metric reports value" do
     with_tmp_project do |dir|
       init_with_data(dir)
@@ -167,6 +229,50 @@ RSpec.describe("forecast and explain commands") do
         cli.start(["explain", "metric", "total_income", "--project", dir])
       end
       expect(out).to(include("3000000"))
+    end
+  end
+
+  it "explain record sums per-year contribution across the forecast" do
+    with_tmp_project do |dir|
+      init_with_data(dir)
+      out = capture_stdout do
+        cli.start([
+          "explain", "record", "income.salary", "--project", dir, "--format", "json",
+        ])
+      end
+      data = JSON.parse(out)["data"]
+      expect(data["target_type"]).to(eq("record"))
+      expect(data["value"]).to(eq(3_000_000))
+      expect(data["per_year"].size).to(eq(3))
+    end
+  end
+
+  it "explain scenario-diff reports delta and override contributors" do
+    with_tmp_project do |dir|
+      init_with_data(dir)
+      cli.start(["scenario", "create", "lean", "--project", dir, "--base", "base"])
+      cli.start([
+        "scenario", "set", "lean", "expense.living.amount", "100000", "--project", dir,
+      ])
+      out = capture_stdout do
+        cli.start([
+          "explain",
+          "scenario-diff",
+          "base",
+          "lean",
+          "--project",
+          dir,
+          "--year",
+          "2028",
+          "--format",
+          "json",
+        ])
+      end
+      data = JSON.parse(out)["data"]
+      expect(data["target_type"]).to(eq("scenario_diff"))
+      expect(data["deltas"]).to(include("net_worth"))
+      paths = data["contributors"].map { |c| c["path"] }
+      expect(paths).to(include("expense.living.amount"))
     end
   end
 
