@@ -400,6 +400,107 @@ RSpec.describe(Lifeplan::Forecast::Engine) do
     expect(result.years[1].details["assets"]).to(include("dc-pension" => 0, "cash" => 5_000_000))
   end
 
+  def person(**attrs)
+    Lifeplan::Records::Person.from_hash({
+      "id" => "p", "name" => "P", "relationship" => "other",
+    }.merge(attrs.transform_keys(&:to_s)))
+  end
+
+  def profile_with(people)
+    Lifeplan::Records::Profile.from_hash({
+      "id" => "h", "name" => "H", "people" => people,
+    })
+  end
+
+  it "per_person is nil when include_per_person is false (default)" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.incomes << income(amount: 1_000_000, from: 2026, to: 2026)
+    end
+    result = described_class.new(project).call
+    expect(result.years.first.per_person).to(be_nil)
+  end
+
+  it "per_person buckets income, expense, and assets by person_id" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.profile = profile_with([person(id: "self"), person(id: "spouse")])
+      p.incomes << income(id: "salary", amount: 9_600_000, from: 2026, to: 2026, person_id: "self")
+      p.incomes << income(id: "side", amount: 1_200_000, from: 2026, to: 2026, person_id: "spouse")
+      p.expenses << expense(id: "self-tax", amount: 2_100_000, from: 2026, to: 2026, person_id: "self")
+      p.expenses << expense(id: "spouse-misc", amount: 900_000, from: 2026, to: 2026, person_id: "spouse")
+      p.expenses << expense(id: "shared", amount: 1_200_000, from: 2026, to: 2026)
+      p.assets << asset(id: "self-cash", amount: 0, return: 0, category: "cash", person_id: "self")
+      p.assets << asset(id: "spouse-cash", amount: 8_000_000, return: 0, person_id: "spouse")
+      p.assets << asset(id: "joint", amount: 2_000_000, return: 0)
+    end
+
+    result = described_class.new(project, include_per_person: true).call
+    pp = result.years.first.per_person
+    expect(pp.keys).to(contain_exactly("self", "spouse", "_shared"))
+    expect(pp["self"]["income"]).to(eq(9_600_000))
+    expect(pp["spouse"]["income"]).to(eq(1_200_000))
+    expect(pp["_shared"]["income"]).to(eq(0))
+    expect(pp["self"]["expense"]).to(eq(2_100_000))
+    expect(pp["spouse"]["expense"]).to(eq(900_000))
+    expect(pp["_shared"]["expense"]).to(eq(1_200_000))
+
+    household = result.years.first
+    expect(pp.values.sum { |v| v["income"] }).to(eq(household.income))
+    expect(pp.values.sum { |v| v["expense"] }).to(eq(household.expense))
+    expect(pp.values.sum { |v| v["asset_balance"] }).to(eq(household.asset_balance))
+    expect(pp.values.sum { |v| v["net_worth"] }).to(eq(household.net_worth))
+  end
+
+  it "per_person buckets event income/expense by event.person_id" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.profile = profile_with([person(id: "self"), person(id: "spouse")])
+      p.events << Lifeplan::Records::Event.from_hash({
+        "id" => "bonus",
+        "name" => "Bonus",
+        "year" => 2026,
+        "amount" => 500_000,
+        "impact_type" => "income",
+        "person_id" => "spouse",
+      })
+    end
+
+    result = described_class.new(project, include_per_person: true).call
+    pp = result.years.first.per_person
+    expect(pp["spouse"]["income"]).to(eq(500_000))
+    expect(pp["self"]["income"]).to(eq(0))
+  end
+
+  it "per_person includes a zero row for every profile.people[*].id" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.profile = profile_with([person(id: "self"), person(id: "spouse")])
+      p.incomes << income(amount: 1_000_000, from: 2026, to: 2026, person_id: "self")
+    end
+    result = described_class.new(project, include_per_person: true).call
+    pp = result.years.first.per_person
+    expect(pp["spouse"]).to(eq({
+      "income" => 0, "expense" => 0, "asset_balance" => 0, "liability_balance" => 0, "net_worth" => 0,
+    }))
+  end
+
+  it "per_person rolls liabilities into _shared (LIABILITY has no person_id today)" do
+    project = project_with(start: 2026, last: 2026) do |p|
+      p.profile = profile_with([person(id: "self")])
+      p.liabilities << Lifeplan::Records::Liability.from_hash({
+        "id" => "loan",
+        "name" => "Loan",
+        "principal" => 1_000_000,
+        "rate" => 0,
+        "from" => 2026,
+        "to" => 2026,
+        "payment" => 1_000_000,
+        "frequency" => "yearly",
+      })
+    end
+    result = described_class.new(project, include_per_person: true).call
+    pp = result.years.first.per_person
+    expect(pp["_shared"]["liability_balance"]).to(eq(result.years.first.liability_balance))
+    expect(pp["self"]["liability_balance"]).to(eq(0))
+  end
+
   it "summary tracks min, retirement, and totals" do
     project = project_with(start: 2026, last: 2030) do |p|
       person = Lifeplan::Records::Person.from_hash({
